@@ -79,6 +79,7 @@ model User {
   followers       Follow[]         @relation("followee")
   media           Media[]
   posts           Post[]
+  comments        Comment[]
 
   @@index([hometownId])
   @@map("users")
@@ -199,7 +200,8 @@ model Post {
   createdAt  DateTime     @default(now()) @map("created_at")
   updatedAt  DateTime     @updatedAt @map("updated_at")
 
-  photos PostPhoto[]
+  photos   PostPhoto[]
+  comments Comment[]
 
   @@index([createdAt(sort: Desc), id(sort: Desc)])
   @@index([authorId, createdAt(sort: Desc)])
@@ -219,4 +221,17 @@ model PostPhoto {
 
   @@index([postId, position])
   @@map("post_photos")
+}
+
+model Comment {
+  id        String   @id @default(uuid()) @db.Uuid
+  postId    String   @map("post_id") @db.Uuid
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorId  String   @map("author_id") @db.Uuid
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  body      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([postId, createdAt, id])
+  @@map("comments")
 }

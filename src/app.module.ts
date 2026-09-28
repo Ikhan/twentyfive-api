@@ -5,6 +5,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AppConfigModule } from './config/config.module.js';
 import { AppConfigService } from './config/app-config.service.js';
 import { AuthModule } from './modules/auth/auth.module.js';
+import { CommentsModule } from './modules/comments/comments.module.js';
 import { DistrictsModule } from './modules/districts/districts.module.js';
 import { FollowsModule } from './modules/follows/follows.module.js';
 import { HealthModule } from './modules/health/health.module.js';
@@ -31,6 +32,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
     FollowsModule,
     MediaModule,
     PostsModule,
+    CommentsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

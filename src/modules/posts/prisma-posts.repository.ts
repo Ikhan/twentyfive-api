@@ -14,12 +14,13 @@ const SELECT = {
   author: { select: { id: true, username: true, displayName: true, avatarUrl: true, isPrivate: true } },
   district: { select: { id: true, name: true, colorFrom: true, colorTo: true } },
   photos: { select: { id: true, url: true }, orderBy: { position: 'asc' } },
+  _count: { select: { comments: true } },
 } as const satisfies Prisma.PostSelect;
 
 type Row = Prisma.PostGetPayload<{ select: typeof SELECT }>;
 
-function toView({ district: { colorFrom, colorTo, ...district }, ...row }: Row): PostView {
-  return { ...row, district: { ...district, colors: [colorFrom, colorTo] } };
+function toView({ district: { colorFrom, colorTo, ...district }, _count, ...row }: Row): PostView {
+  return { ...row, district: { ...district, colors: [colorFrom, colorTo] }, counts: { comments: _count.comments } };
 }
 
 /**

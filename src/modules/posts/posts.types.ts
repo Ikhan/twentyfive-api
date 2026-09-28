@@ -21,6 +21,11 @@ export interface PostView {
   author: UserSummary;
   district: PostDistrict;
   photos: PostPhotoView[];
+  counts: PostCounts;
+}
+
+export interface PostCounts {
+  comments: number;
 }
 
 /** Which posts a list should contain; visibility rules are always applied on top. */
