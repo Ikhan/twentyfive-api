@@ -84,4 +84,22 @@ describe('Follows (e2e)', () => {
     await http().put('/api/v1/users/nobody/follow').set('Authorization', kasun.auth).expect(404);
     await http().put('/api/v1/users/tharushi/follow').expect(401);
   });
+
+  it('suggests people to follow with a reason, and drops them once followed', async () => {
+    await http().put('/api/v1/users/kasun/follow').set('Authorization', tharushi.auth).expect(200);
+    const res = await http().get('/api/v1/suggestions/people?limit=4').set('Authorization', kasun.auth).expect(200);
+    expect(res.body.data[0]).toEqual({
+      id: tharushi.id,
+      username: 'tharushi',
+      displayName: 'tharushi',
+      avatarUrl: null,
+      isPrivate: false,
+      reason: { kind: 'follows-you' },
+    });
+    await http().put('/api/v1/users/tharushi/follow').set('Authorization', kasun.auth).expect(200);
+    const after = await http().get('/api/v1/suggestions/people').set('Authorization', kasun.auth).expect(200);
+    expect(after.body.data.map((u: { username: string }) => u.username)).toEqual(['sachini']);
+    await http().get('/api/v1/suggestions/people').expect(401);
+    await http().get('/api/v1/suggestions/people?limit=21').set('Authorization', kasun.auth).expect(400);
+  });
 });

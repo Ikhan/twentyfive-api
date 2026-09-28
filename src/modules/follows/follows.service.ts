@@ -13,7 +13,14 @@ import {
   UserNotFoundError,
 } from './follows.errors.js';
 import { FOLLOWS_REPOSITORY, type FollowsRepository } from './follows.repository.js';
-import type { FollowStats, FollowTarget, Relationship } from './follows.types.js';
+import type {
+  FollowStats,
+  FollowTarget,
+  Relationship,
+  SuggestedUser,
+  SuggestionReason,
+  SuggestionRow,
+} from './follows.types.js';
 
 type Cursor = { u: string };
 const isCursor = (v: unknown): v is Cursor =>
@@ -87,6 +94,19 @@ export class FollowsService {
     await this.follows.remove(requester.id, viewerId);
   }
 
+  /** "People to follow", each with the most convincing reason to (follows you > mutuals > hometown). */
+  async suggestions(viewerId: string, limit: number): Promise<SuggestedUser[]> {
+    const rows = await this.follows.suggestions(viewerId, limit);
+    return rows.map((row) => ({
+      id: row.id,
+      username: row.username,
+      displayName: row.displayName,
+      avatarUrl: row.avatarUrl,
+      isPrivate: row.isPrivate,
+      reason: suggestionReason(row),
+    }));
+  }
+
   /** Called when someone blocks someone: neither follows the other any more. */
   async severBetween(userA: string, userB: string): Promise<void> {
     await Promise.all([this.follows.remove(userA, userB), this.follows.remove(userB, userA)]);
@@ -145,4 +165,12 @@ export class FollowsService {
       (u): Cursor => ({ u: u.username }),
     );
   }
+}
+
+function suggestionReason(row: SuggestionRow): SuggestionReason {
+  if (row.followsYou) return { kind: 'follows-you' };
+  if (row.mutualCount > 0) return { kind: 'followed-by', usernames: row.mutualUsernames, count: row.mutualCount };
+  if (row.hometown && row.sameHometown) return { kind: 'hometown', district: row.hometown };
+  if (row.hometown && row.fromFollowedDistrict) return { kind: 'followed-district', district: row.hometown };
+  return null;
 }

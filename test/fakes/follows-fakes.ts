@@ -1,5 +1,5 @@
 import type { FollowsRepository } from '../../src/modules/follows/follows.repository.js';
-import type { FollowStatus, FollowTarget } from '../../src/modules/follows/follows.types.js';
+import type { FollowStatus, FollowTarget, SuggestionRow } from '../../src/modules/follows/follows.types.js';
 import type { UserSummary } from '../../src/modules/users/users.types.js';
 
 type Page = { afterUsername?: string; take: number };
@@ -67,6 +67,13 @@ export class InMemoryFollowsRepository implements FollowsRepository {
 
   requests(userId: string, page: Page): Promise<UserSummary[]> {
     return this.list((from, to, s) => to === userId && s === 'PENDING' && from, page);
+  }
+
+  /** Preset ranking (the scoring itself is SQL, covered by the integration tests). */
+  readonly suggestionRows: SuggestionRow[] = [];
+
+  async suggestions(_viewerId: string, take: number): Promise<SuggestionRow[]> {
+    return this.suggestionRows.slice(0, take);
   }
 
   private async list(

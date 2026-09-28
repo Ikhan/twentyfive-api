@@ -69,4 +69,71 @@ describe('PrismaFollowsRepository (integration)', () => {
     expect((await follows.requests(ids.sachini!, { take: 10 })).map((u) => u.username)).toEqual(['kasun']);
     expect(await follows.requests(ids.kasun!, { take: 10 })).toEqual([]);
   });
+
+  describe('suggestions', () => {
+    const follow = (from: string, to: string, status: 'ACCEPTED' | 'PENDING' = 'ACCEPTED') =>
+      follows.create(ids[from]!, ids[to]!, status);
+    const person = async (username: string, data: { hometownId?: string; onboarded?: boolean } = {}) => {
+      ids[username] = (
+        await prisma.user.create({
+          data: {
+            username,
+            displayName: username,
+            hometownId: data.hometownId,
+            onboardedAt: data.onboarded === false ? null : new Date(),
+          },
+        })
+      ).id;
+    };
+    const suggested = async (take = 20) => (await follows.suggestions(ids.kasun!, take)).map((s) => s.username);
+
+    beforeEach(async () => {
+      await prisma.user.updateMany({ data: { onboardedAt: new Date() } });
+      await prisma.user.update({ where: { id: ids.kasun }, data: { hometownId: 'kandy' } });
+    });
+
+    it('ranks follows-you over mutuals over hometown over a followed district, and says why', async () => {
+      await person('fan');
+      await person('mutual');
+      await person('local', { hometownId: 'kandy' });
+      await person('southern', { hometownId: 'galle' });
+      await prisma.districtFollow.create({ data: { userId: ids.kasun!, districtId: 'galle' } });
+      await follow('fan', 'kasun');
+      await follow('kasun', 'tharushi');
+      await follow('kasun', 'dilan');
+      await follow('tharushi', 'mutual');
+      await follow('dilan', 'mutual');
+      const rows = await follows.suggestions(ids.kasun!, 4);
+      expect(rows.map((r) => r.username)).toEqual(['mutual', 'fan', 'local', 'southern']); // 2 mutuals = 6 > 5
+      expect(rows[0]).toMatchObject({ mutualCount: 2, mutualUsernames: ['dilan', 'tharushi'], followsYou: false });
+      expect(rows[1]).toMatchObject({ followsYou: true, mutualCount: 0 });
+      expect(rows[2]).toMatchObject({ sameHometown: true, hometown: { id: 'kandy', name: 'Kandy' } });
+      expect(rows[3]).toMatchObject({ fromFollowedDistrict: true, sameHometown: false });
+    });
+
+    it('leaves out you, people you follow or asked to, blocks either way, and people not onboarded', async () => {
+      await person('blocked');
+      await person('blocker');
+      await person('halfway', { onboarded: false });
+      await follow('kasun', 'tharushi');
+      await follow('kasun', 'sachini', 'PENDING');
+      await prisma.block.create({ data: { blockerId: ids.kasun!, blockedId: ids.blocked! } });
+      await prisma.block.create({ data: { blockerId: ids.blocker!, blockedId: ids.kasun! } });
+      expect(await suggested()).toEqual(['dilan']);
+    });
+
+    it('doesn’t reveal who follows a private account', async () => {
+      await follow('kasun', 'tharushi');
+      await follow('tharushi', 'sachini');
+      const [row] = await follows.suggestions(ids.kasun!, 20).then((r) => r.filter((s) => s.username === 'sachini'));
+      expect(row).toMatchObject({ mutualCount: 0, mutualUsernames: [] });
+    });
+
+    it('breaks ties by recent posting, then followers, then newest', async () => {
+      await follow('tharushi', 'sachini'); // sachini: 1 follower
+      expect(await suggested()).toEqual(['sachini', 'dilan', 'tharushi']); // dilan is newer than tharushi
+      await prisma.post.create({ data: { authorId: ids.tharushi!, body: 'hi' } });
+      expect((await suggested(1))[0]).toBe('tharushi');
+    });
+  });
 });
