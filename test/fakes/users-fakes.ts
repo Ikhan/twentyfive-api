@@ -10,6 +10,7 @@ export function profile(overrides: Partial<MyProfile> = {}): MyProfile {
     displayName: 'Kasun Perera',
     bio: '',
     avatarUrl: null,
+    headerUrl: null,
     hometown: null,
     isPrivate: false,
     onboarded: false,

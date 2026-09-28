@@ -7,7 +7,7 @@ import { ALLOWED_IMAGE_TYPES, detectImageType, EXTENSION, SIGNATURE_BYTES, type 
 import { OBJECT_STORAGE, type ObjectStorage } from './storage/object-storage.js';
 
 const MB = 1024 * 1024;
-export const MAX_BYTES: Record<MediaPurpose, number> = { POST_PHOTO: 10 * MB, AVATAR: 5 * MB };
+export const MAX_BYTES: Record<MediaPurpose, number> = { POST_PHOTO: 10 * MB, AVATAR: 5 * MB, HEADER: 10 * MB };
 const UPLOAD_TTL_SECONDS = 5 * 60;
 
 @Injectable()

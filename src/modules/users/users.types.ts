@@ -19,6 +19,8 @@ export interface PublicProfile {
   displayName: string;
   bio: string;
   avatarUrl: string | null;
+  /** Custom profile banner; null means "show the hometown photo". */
+  headerUrl: string | null;
   hometown: DistrictRef | null;
   isPrivate: boolean;
   joinedAt: Date;
@@ -32,6 +34,8 @@ export interface MyProfile extends PublicProfile {
 export interface ProfileChanges {
   /** Set via PUT/DELETE /users/me/avatar only (from a verified upload). */
   avatarUrl?: string | null;
+  /** Set via PUT/DELETE /users/me/header only (from a verified upload). */
+  headerUrl?: string | null;
   displayName?: string;
   username?: string;
   bio?: string;

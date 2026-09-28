@@ -2,7 +2,13 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query } from '@
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { AuthUser } from '../../common/auth-user.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
-import { CompleteOnboardingDto, SetAvatarDto, UpdateProfileDto, UsernameQueryDto } from './dto/profile.dto.js';
+import {
+  CompleteOnboardingDto,
+  SetAvatarDto,
+  SetHeaderDto,
+  UpdateProfileDto,
+  UsernameQueryDto,
+} from './dto/profile.dto.js';
 import { UsersService, type UsernameAvailability } from './users.service.js';
 import type { MyProfile, PublicProfile } from './users.types.js';
 
@@ -33,6 +39,18 @@ export class UsersController {
   @ApiOperation({ summary: 'Remove your profile photo' })
   removeAvatar(@CurrentUser() user: AuthUser): Promise<MyProfile> {
     return this.users.removeAvatar(user.id);
+  }
+
+  @Put('me/header')
+  @ApiOperation({ summary: 'Use a completed HEADER upload as your profile banner' })
+  setHeader(@CurrentUser() user: AuthUser, @Body() dto: SetHeaderDto): Promise<MyProfile> {
+    return this.users.setHeader(user.id, dto.mediaId);
+  }
+
+  @Delete('me/header')
+  @ApiOperation({ summary: 'Remove your profile banner (apps show your hometown photo instead)' })
+  removeHeader(@CurrentUser() user: AuthUser): Promise<MyProfile> {
+    return this.users.removeHeader(user.id);
   }
 
   @Post('me/onboarding')

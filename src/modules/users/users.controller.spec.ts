@@ -12,6 +12,8 @@ describe('UsersController', () => {
     byUsername: vi.fn().mockResolvedValue(me),
     setAvatar: vi.fn().mockResolvedValue(me),
     removeAvatar: vi.fn().mockResolvedValue(me),
+    setHeader: vi.fn().mockResolvedValue(me),
+    removeHeader: vi.fn().mockResolvedValue(me),
   };
   const controller = new UsersController(service as unknown as UsersService);
   const user = { id: 'u-kasun' };
@@ -29,6 +31,10 @@ describe('UsersController', () => {
     expect(service.setAvatar).toHaveBeenCalledWith('u-kasun', 'm1');
     await controller.removeAvatar(user);
     expect(service.removeAvatar).toHaveBeenCalledWith('u-kasun');
+    await controller.setHeader(user, { mediaId: 'm2' });
+    expect(service.setHeader).toHaveBeenCalledWith('u-kasun', 'm2');
+    await controller.removeHeader(user);
+    expect(service.removeHeader).toHaveBeenCalledWith('u-kasun');
     await controller.profile('kasunperera');
     expect(service.byUsername).toHaveBeenCalledWith('kasunperera');
   });

@@ -24,6 +24,7 @@ describe('PrismaUsersRepository (integration)', () => {
       displayName: 'kasun',
       bio: 'hi',
       avatarUrl: null,
+      headerUrl: null,
       hometown: { id: 'kandy', name: 'Kandy' },
       isPrivate: false,
       onboarded: false,

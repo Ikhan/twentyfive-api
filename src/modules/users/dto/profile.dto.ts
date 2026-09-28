@@ -91,3 +91,9 @@ export class SetAvatarDto {
   @IsUUID()
   mediaId!: string;
 }
+
+export class SetHeaderDto {
+  @ApiProperty({ description: 'Id of a completed HEADER upload (POST /media/uploads → /media/:id/complete)' })
+  @IsUUID()
+  mediaId!: string;
+}

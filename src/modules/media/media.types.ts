@@ -1,4 +1,4 @@
-export type MediaPurpose = 'POST_PHOTO' | 'AVATAR';
+export type MediaPurpose = 'POST_PHOTO' | 'AVATAR' | 'HEADER';
 export type MediaStatus = 'PENDING' | 'READY';
 
 export interface MediaRecord {
