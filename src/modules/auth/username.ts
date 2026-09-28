@@ -1,6 +1,5 @@
 import { randomInt } from 'node:crypto';
-
-export const USERNAME_PATTERN = /^[a-z0-9_]{3,20}$/;
+import { RESERVED_USERNAMES } from '../../common/validation/username.js';
 const MAX_BASE = 15; // leaves room for a 4-digit suffix within 20 chars
 
 /**
@@ -15,7 +14,7 @@ export function usernameCandidates(displayName: string, count = 6): string[] {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '')
     .slice(0, MAX_BASE);
-  const base = ascii.length >= 3 ? ascii : 'user';
+  const base = ascii.length >= 3 && !RESERVED_USERNAMES.has(ascii) ? ascii : 'user';
   const suffix = () => String(randomInt(1000, 10000));
   const candidates = base === 'user' ? [] : [base];
   while (candidates.length < count) candidates.push(`${base}${suffix()}`);

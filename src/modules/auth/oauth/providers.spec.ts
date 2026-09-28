@@ -125,7 +125,7 @@ describe('XProvider', () => {
     );
     const profile = await new XProvider('xid', 'xs', http).fetchProfile(exchange);
     expect(profile).toEqual({ providerAccountId: 'x-1', displayName: 'arun', avatarUrl: 'https://pbs/abc.jpg' });
-    expect((calls[0]?.init?.headers as Record<string, string>).Authorization).toBe(
+    expect((calls[0]!.init!.headers as Record<string, string>).Authorization).toBe(
       `Basic ${Buffer.from('xid:xs').toString('base64')}`,
     );
   });

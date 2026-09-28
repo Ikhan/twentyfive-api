@@ -1,4 +1,5 @@
-import { USERNAME_PATTERN, usernameCandidates } from './username.js';
+import { USERNAME_PATTERN } from '../../common/validation/username.js';
+import { usernameCandidates } from './username.js';
 
 describe('usernameCandidates', () => {
   it('starts with a clean handle from the display name, then adds numeric suffixes', () => {
@@ -18,6 +19,10 @@ describe('usernameCandidates', () => {
     const candidates = usernameCandidates('කසුන් පෙරේරා');
     expect(candidates).toHaveLength(6);
     for (const candidate of candidates) expect(candidate).toMatch(/^user\d{4}$/);
+  });
+
+  it('never suggests reserved handles', () => {
+    for (const candidate of usernameCandidates('Admin')) expect(candidate).toMatch(/^user\d{4}$/);
   });
 
   it('always produces valid usernames', () => {
