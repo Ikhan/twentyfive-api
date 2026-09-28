@@ -90,6 +90,60 @@ describe('DistrictsService', () => {
     expect(second.meta.nextCursor).toBeNull();
   });
 
+  describe('trending', () => {
+    const HOUR = 3_600_000;
+    const ago = (hours: number) => new Date(Date.now() - hours * HOUR);
+    const post = (districtId: string, hoursAgo = 1) => ({ districtId, weight: 3, at: ago(hoursAgo), post: true });
+    const like = (districtId: string, hoursAgo = 1) => ({ districtId, weight: 1, at: ago(hoursAgo), post: false });
+
+    afterEach(() => vi.useRealTimers());
+
+    it('ranks districts by today’s weighted activity, with how many posts they had', async () => {
+      const { service, repo } = setup();
+      repo.events.push(post('kandy'), post('ampara'), post('ampara'), like('kandy'));
+      const trending = await service.trending(5);
+      expect(trending.slice(0, 2).map((d) => [d.id, d.postCount, d.window])).toEqual([
+        ['ampara', 2, 'day'],
+        ['kandy', 1, 'day'],
+      ]);
+      expect(trending[0]).toMatchObject({ name: 'Ampara', colors: ['#000000', '#ffffff'], followerCount: 0 });
+    });
+
+    it('prefers recent activity: a fresh post beats an older one', async () => {
+      const { service, repo } = setup();
+      repo.events.push(post('kandy', 20), like('kandy', 20), post('ampara', 0.5));
+      expect((await service.trending(2)).map((d) => d.id)).toEqual(['ampara', 'kandy']);
+    });
+
+    it('ignores districts below the activity threshold, then falls back to this week, then followers', async () => {
+      const { service, repo } = setup();
+      repo.events.push(like('ampara'), post('kandy', 48), post('kandy', 50));
+      await repo.follow('u1', 'matale');
+      const trending = await service.trending(3);
+      expect(trending.map((d) => [d.id, d.window, d.postCount])).toEqual([
+        ['kandy', 'week', 2],
+        ['matale', null, 0], // 1 follower
+        ['ampara', null, 0], // a single like isn’t trending
+      ]);
+      expect(trending[1]!.followerCount).toBe(1);
+    });
+
+    it('always fills the list, even with no activity at all', async () => {
+      expect((await setup().service.trending(5)).map((d) => d.id)).toEqual(['ampara', 'kandy', 'matale']);
+    });
+
+    it('caches the ranking for a few minutes', async () => {
+      vi.useFakeTimers();
+      const { service, repo } = setup();
+      repo.events.push(post('kandy'), post('kandy'));
+      expect((await service.trending(1))[0]!.id).toBe('kandy');
+      repo.events.push(post('ampara'), post('ampara'), post('ampara'));
+      expect((await service.trending(1))[0]!.id).toBe('kandy');
+      vi.advanceTimersByTime(6 * 60_000);
+      expect((await service.trending(1))[0]!.id).toBe('ampara');
+    });
+  });
+
   it('rejects invalid cursors', async () => {
     await expect(setup().service.residents('kandy', { limit: 2, cursor: 'garbage' })).rejects.toBeInstanceOf(
       ValidationError,

@@ -8,8 +8,8 @@ import { Public } from '../../common/decorators/public.decorator.js';
 import { PageQueryDto } from '../../common/pagination/page-query.dto.js';
 import type { UserSummary } from '../users/users.types.js';
 import { DistrictsService } from './districts.service.js';
-import type { DistrictDetail, DistrictListItem, FollowState } from './districts.types.js';
-import { DistrictListQueryDto } from './dto/district-query.dto.js';
+import type { DistrictDetail, DistrictListItem, FollowState, TrendingDistrict } from './districts.types.js';
+import { DistrictListQueryDto, TrendingQueryDto } from './dto/district-query.dto.js';
 
 @ApiTags('districts')
 @Controller('districts')
@@ -21,6 +21,14 @@ export class DistrictsController {
   @ApiOperation({ summary: 'All 25 districts A–Z with follower counts (and whether you follow each, when signed in)' })
   list(@Query() query: DistrictListQueryDto, @OptionalUser() viewer?: AuthUser): Promise<DistrictListItem[]> {
     return this.districts.list(query.province, viewer?.id);
+  }
+
+  // Before ':id', so "trending" isn't taken for a district.
+  @Public()
+  @Get('trending')
+  @ApiOperation({ summary: 'Trending cities: most active today, then this week, then most followed' })
+  trending(@Query() query: TrendingQueryDto): Promise<TrendingDistrict[]> {
+    return this.districts.trending(query.limit);
   }
 
   @Public()

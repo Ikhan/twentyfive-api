@@ -1,6 +1,6 @@
 import type { Province } from '../../generated/prisma/enums.js';
 import type { UserSummary } from '../users/users.types.js';
-import type { DistrictRow, FollowState } from './districts.types.js';
+import type { DistrictActivity, DistrictRow, FollowState } from './districts.types.js';
 
 export interface DistrictsRepository {
   /** All districts (optionally one province), A–Z. */
@@ -14,6 +14,11 @@ export interface DistrictsRepository {
   follow(userId: string, districtId: string): Promise<void>;
   /** Idempotent. */
   unfollow(userId: string, districtId: string): Promise<void>;
+  /**
+   * Public activity per district since `since` (only districts with some): posts there, plus comments,
+   * likes, reposts and quotes on them, plus new followers. Each counts less as it ages (`halfLifeHours`).
+   */
+  activity(since: Date, halfLifeHours: number): Promise<DistrictActivity[]>;
   /** People whose hometown is this district, ordered by username, after `afterUsername`. */
   residents(districtId: string, options: { afterUsername?: string; take: number }): Promise<UserSummary[]>;
 }

@@ -78,4 +78,46 @@ describe('PrismaDistrictsRepository (integration)', () => {
       'chamari',
     ]);
   });
+
+  describe('activity', () => {
+    const HOUR = 3_600_000;
+    const ago = (hours: number) => new Date(Date.now() - hours * HOUR);
+    const post = (authorId: string, districtId: string | null, extra: object = {}) =>
+      prisma.post.create({ data: { authorId, districtId, body: 'hi', ...extra } });
+    const byId = async (since: Date, halfLife = 1e9) =>
+      new Map((await districts.activity(since, halfLife)).map((a) => [a.districtId, a]));
+
+    it('weighs public posts, comments, likes, reposts, quotes and new followers per district', async () => {
+      const a = (await user('a')).id;
+      const b = (await user('b')).id;
+      const p = await post(a, 'kandy');
+      await prisma.comment.create({ data: { postId: p.id, authorId: b, body: 'nice' } });
+      await prisma.postLike.create({ data: { postId: p.id, userId: b } });
+      await prisma.repost.create({ data: { postId: p.id, userId: b } });
+      await post(b, null, { isQuote: true, quotedPostId: p.id }); // quote of a Kandy post, itself in no district
+      await districts.follow(b, 'galle');
+      const activity = await byId(ago(24)); // a huge half-life: no decay
+      // post 3 + comment 2 + like 1 + repost 2 + quote 2
+      expect(activity.get('kandy')).toEqual({ districtId: 'kandy', posts: 1, score: expect.closeTo(10, 3) });
+      expect(activity.get('galle')).toEqual({ districtId: 'galle', posts: 0, score: expect.closeTo(2, 3) });
+      expect(activity.size).toBe(2);
+    });
+
+    it('leaves out follower-only posts, private accounts, and anything before `since`', async () => {
+      const a = (await user('a')).id;
+      const hidden = (await prisma.user.create({ data: { username: 'hid', displayName: 'hid', isPrivate: true } })).id;
+      const followersOnly = await post(a, 'kandy', { audience: 'FOLLOWERS' });
+      await prisma.postLike.create({ data: { postId: followersOnly.id, userId: a } });
+      await post(hidden, 'kandy');
+      await post(a, 'galle', { createdAt: ago(30) });
+      await expect(districts.activity(ago(24), 12)).resolves.toEqual([]);
+      expect((await byId(ago(48))).get('galle')?.posts).toBe(1);
+    });
+
+    it('halves each event’s weight every half-life', async () => {
+      const a = (await user('a')).id;
+      await post(a, 'kandy', { createdAt: ago(12) });
+      expect((await byId(ago(24), 12)).get('kandy')?.score).toBeCloseTo(1.5, 2);
+    });
+  });
 });

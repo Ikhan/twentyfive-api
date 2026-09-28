@@ -53,6 +53,25 @@ describe('Districts (e2e)', () => {
     });
   });
 
+  // The only trending test here: the ranking is cached for the life of the app.
+  it('ranks trending cities without signing in: active today first, then most followed', async () => {
+    await http()
+      .post('/api/v1/posts')
+      .set('Authorization', kasun.auth)
+      .send({ body: 'Galle today', districtId: 'galle' })
+      .expect(201);
+    await http().put('/api/v1/districts/jaffna/follow').set('Authorization', kasun.auth).expect(200);
+    const res = await http().get('/api/v1/districts/trending?limit=2').expect(200);
+    expect(res.body.data).toEqual([
+      expect.objectContaining({ id: 'galle', name: 'Galle', postCount: 1, window: 'day', followerCount: 0 }),
+      // A new follower counts as activity too (2), just under the bar alone, so Jaffna is here for its follower.
+      expect.objectContaining({ id: 'jaffna', postCount: 0, window: null, followerCount: 1 }),
+    ]);
+    expect((await http().get('/api/v1/districts/trending').expect(200)).body.data).toHaveLength(5);
+    await http().get('/api/v1/districts/trending?limit=0').expect(400);
+    await http().get('/api/v1/districts/trending?limit=26').expect(400);
+  });
+
   it('shows detail publicly, with followedByMe when signed in', async () => {
     const anon = await http().get('/api/v1/districts/kandy').expect(200);
     expect(anon.body.data).toMatchObject({
