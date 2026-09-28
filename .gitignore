@@ -20,3 +20,4 @@ coverage/
 
 # Prisma client is generated (npm run db:generate / postinstall)
 src/generated/
+openapi.json

@@ -16,6 +16,7 @@ export default defineConfig({
       // prisma.service.ts and every prisma-*.repository.ts.
       exclude: [
         'src/main.ts',
+        'src/export-openapi.ts',
         'src/app.setup.ts',
         'src/prisma/prisma.service.ts',
         'src/**/prisma-*.repository.ts',

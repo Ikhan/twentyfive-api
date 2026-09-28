@@ -83,6 +83,14 @@ In production, serve the bucket through a CDN and set `S3_PUBLIC_URL`.
 - **Moderation**: blocking removes follows both ways and hides each other's posts, comments and
   notifications. Reports (`POST /reports`) are stored for review; there's no admin API yet.
 
+## API clients (Yaak, Postman, …)
+
+1. `npm run openapi:export` writes `openapi.json` (git-ignored): import it into your client.
+2. `npm run dev:token -- kasun` prints a 12-hour access token (creating `@kasun` if needed). Local only.
+3. Use it as Bearer auth. Bearer requests skip CSRF; the web app uses cookies instead.
+
+Interactive docs: `http://localhost:3000/api/docs` (not in production).
+
 ## Git workflow
 
 - `main`: releases only. Never commit or merge features directly.

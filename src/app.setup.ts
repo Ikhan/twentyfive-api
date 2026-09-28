@@ -1,10 +1,11 @@
 import { INestApplication, ValidationPipe, VersioningType } from '@nestjs/common';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter.js';
 import { ResponseEnvelopeInterceptor } from './common/interceptors/response-envelope.interceptor.js';
 import { AppConfigService } from './config/app-config.service.js';
+import { createOpenApiDocument } from './openapi.js';
 
 export const API_PREFIX = 'api';
 
@@ -33,11 +34,7 @@ export function configureApp(app: INestApplication): INestApplication {
   app.enableShutdownHooks();
 
   if (!config.isProduction) {
-    const document = SwaggerModule.createDocument(
-      app,
-      new DocumentBuilder().setTitle('twentyfive.lk API').setVersion('1').addCookieAuth('access_token').build(),
-    );
-    SwaggerModule.setup(`${API_PREFIX}/docs`, app, document);
+    SwaggerModule.setup(`${API_PREFIX}/docs`, app, createOpenApiDocument(app));
   }
 
   return app;
