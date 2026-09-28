@@ -1,4 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { DomainEvent, type UserPrivacyChangedEvent } from '../../common/events/domain-events.js';
 import { NotFoundError } from '../../common/errors/app-error.js';
 import { usernameProblem } from '../../common/validation/username.js';
 import { UnknownDistrictError, UsernameNotAllowedError, UsernameTakenError } from './users.errors.js';
@@ -9,7 +11,10 @@ export type UsernameAvailability = { available: true } | { available: false; rea
 
 @Injectable()
 export class UsersService {
-  constructor(@Inject(USERS_REPOSITORY) private readonly users: UsersRepository) {}
+  constructor(
+    @Inject(USERS_REPOSITORY) private readonly users: UsersRepository,
+    private readonly events: EventEmitter2,
+  ) {}
 
   async me(userId: string): Promise<MyProfile> {
     const user = await this.users.findById(userId);
@@ -32,9 +37,17 @@ export class UsersService {
   }
 
   async updateProfile(userId: string, changes: ProfileChanges): Promise<MyProfile> {
-    await this.me(userId);
+    const before = await this.me(userId);
     await this.assertValid(userId, changes);
-    return this.users.update(userId, changes);
+    const after = await this.users.update(userId, changes);
+    if (after.isPrivate !== before.isPrivate) {
+      // e.g. going public approves pending follow requests (see FollowsListener).
+      await this.events.emitAsync(DomainEvent.UserPrivacyChanged, {
+        userId,
+        isPrivate: after.isPrivate,
+      } satisfies UserPrivacyChangedEvent);
+    }
+    return after;
   }
 
   /** Finishes onboarding. Allowed again later (it only updates fields), so a retry after a network error is safe. */

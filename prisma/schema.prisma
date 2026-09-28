@@ -74,6 +74,8 @@ model User {
   accounts        OAuthAccount[]
   sessions        Session[]
   districtFollows DistrictFollow[]
+  following       Follow[]         @relation("follower")
+  followers       Follow[]         @relation("followee")
 
   @@index([hometownId])
   @@map("users")
@@ -122,4 +124,25 @@ model DistrictFollow {
   @@id([userId, districtId])
   @@index([districtId])
   @@map("district_follows")
+}
+
+enum FollowStatus {
+  /// Waiting for a private account to approve.
+  PENDING
+  ACCEPTED
+}
+
+/// followerId follows followeeId. Following a private account starts PENDING.
+model Follow {
+  followerId String       @map("follower_id") @db.Uuid
+  follower   User         @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
+  followeeId String       @map("followee_id") @db.Uuid
+  followee   User         @relation("followee", fields: [followeeId], references: [id], onDelete: Cascade)
+  status     FollowStatus
+  createdAt  DateTime     @default(now()) @map("created_at")
+  acceptedAt DateTime?    @map("accepted_at")
+
+  @@id([followerId, followeeId])
+  @@index([followeeId, status])
+  @@map("follows")
 }

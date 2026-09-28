@@ -1,4 +1,6 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InMemoryUsersRepository, profile } from '../../../test/fakes/users-fakes.js';
+import { DomainEvent } from '../../common/events/domain-events.js';
 import { NotFoundError } from '../../common/errors/app-error.js';
 import { UnknownDistrictError, UsernameNotAllowedError, UsernameTakenError } from './users.errors.js';
 import { UsersService } from './users.service.js';
@@ -8,7 +10,10 @@ function setup() {
     profile(),
     profile({ id: 'u-tharushi', username: 'tharushi', displayName: 'Tharushi' }),
   );
-  return { repo, service: new UsersService(repo) };
+  const events = new EventEmitter2();
+  const emitted: unknown[] = [];
+  events.on(DomainEvent.UserPrivacyChanged, (e) => emitted.push(e));
+  return { repo, events, emitted, service: new UsersService(repo, events) };
 }
 
 describe('UsersService', () => {
@@ -54,6 +59,18 @@ describe('UsersService', () => {
         hometown: { id: 'kandy', name: 'Kandy' },
         isPrivate: true,
       });
+    });
+
+    it('announces privacy changes (and only real changes)', async () => {
+      const { service, emitted } = setup();
+      await service.updateProfile('u-kasun', { bio: 'no privacy change', isPrivate: false });
+      expect(emitted).toEqual([]);
+      await service.updateProfile('u-kasun', { isPrivate: true });
+      await service.updateProfile('u-kasun', { isPrivate: false });
+      expect(emitted).toEqual([
+        { userId: 'u-kasun', isPrivate: true },
+        { userId: 'u-kasun', isPrivate: false },
+      ]);
     });
 
     it('allows keeping your current username', async () => {
