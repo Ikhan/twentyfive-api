@@ -52,7 +52,6 @@ model District {
 enum OAuthProvider {
   GOOGLE
   FACEBOOK
-  X
 }
 
 model User {

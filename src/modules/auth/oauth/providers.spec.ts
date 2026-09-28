@@ -2,7 +2,6 @@ import { scriptedFetch } from '../../../../test/fakes/fetch.js';
 import { FacebookProvider } from './facebook.provider.js';
 import { GoogleProvider } from './google.provider.js';
 import { OAuthError, requestJson } from './oauth-http.js';
-import { XProvider } from './x.provider.js';
 
 const auth = { state: 'st', codeChallenge: 'ch', redirectUri: 'https://api.test/api/v1/auth/x/callback' };
 const exchange = { code: 'the-code', codeVerifier: 'the-verifier', redirectUri: auth.redirectUri };
@@ -103,38 +102,6 @@ describe('FacebookProvider', () => {
     await expect(new FacebookProvider('fid', 'fs', http).fetchProfile(exchange)).resolves.toMatchObject({
       displayName: 'Facebook user',
       avatarUrl: 'https://me',
-    });
-  });
-});
-
-describe('XProvider', () => {
-  it('builds the authorize URL with PKCE and read-only scopes', () => {
-    const url = new XProvider('xid', 'xs').authorizationUrl(auth);
-    expect(url).toMatch(/^https:\/\/x\.com\/i\/oauth2\/authorize\?/);
-    expect(params(url)).toMatchObject({
-      client_id: 'xid',
-      scope: 'users.read tweet.read',
-      code_challenge_method: 'S256',
-    });
-  });
-
-  it('uses Basic auth for the token call and asks for the full-size avatar', async () => {
-    const { http, calls } = scriptedFetch(
-      { body: { access_token: 'at' } },
-      { body: { data: { id: 'x-1', name: '', username: 'arun', profile_image_url: 'https://pbs/abc_normal.jpg' } } },
-    );
-    const profile = await new XProvider('xid', 'xs', http).fetchProfile(exchange);
-    expect(profile).toEqual({ providerAccountId: 'x-1', displayName: 'arun', avatarUrl: 'https://pbs/abc.jpg' });
-    expect((calls[0]!.init!.headers as Record<string, string>).Authorization).toBe(
-      `Basic ${Buffer.from('xid:xs').toString('base64')}`,
-    );
-  });
-
-  it('falls back to a generic name', async () => {
-    const { http } = scriptedFetch({ body: { access_token: 'at' } }, { body: { data: { id: 'x-2' } } });
-    await expect(new XProvider('xid', 'xs', http).fetchProfile(exchange)).resolves.toMatchObject({
-      displayName: 'X user',
-      avatarUrl: undefined,
     });
   });
 });

@@ -44,7 +44,7 @@ API docs (non-production): http://localhost:3000/api/docs
 
 ## Authentication
 
-Sign-in is social only (Google, Facebook, X), using OAuth 2.0 authorization code + PKCE.
+Sign-in is social only (Google and Facebook), using OAuth 2.0 authorization code + PKCE.
 
 1. The web app navigates to `GET /api/v1/auth/<provider>/start`, which redirects to the provider.
 2. The provider redirects to `/api/v1/auth/<provider>/callback`; the API finds or creates the user,
