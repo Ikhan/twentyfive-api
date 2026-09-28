@@ -41,8 +41,6 @@ export const envSchema = z.object({
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   FACEBOOK_CLIENT_ID: z.string().optional(),
   FACEBOOK_CLIENT_SECRET: z.string().optional(),
-  X_CLIENT_ID: z.string().optional(),
-  X_CLIENT_SECRET: z.string().optional(),
 
   /**
    * Object storage for photos (AWS S3, or MinIO locally). Uploads are disabled unless

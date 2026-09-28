@@ -1,6 +1,6 @@
 import type { OAuthProvider as OAuthProviderEnum } from '../../../generated/prisma/enums.js';
 
-export type ProviderId = 'google' | 'facebook' | 'x';
+export type ProviderId = 'google' | 'facebook';
 
 /** The normalised profile every provider returns after sign-in. */
 export interface OAuthProfile {
