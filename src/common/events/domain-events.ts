@@ -12,6 +12,8 @@ export const DomainEvent = {
   FollowAccepted: 'follow.accepted',
   /** Someone commented on a post. */
   CommentCreated: 'comment.created',
+  /** Someone reposted a post (first time only; repeats are no-ops). */
+  PostReposted: 'post.reposted',
 } as const;
 
 export interface UserPrivacyChangedEvent {
@@ -37,4 +39,10 @@ export interface CommentCreatedEvent {
   commenterId: string;
   /** First part of the comment, for notification previews. */
   excerpt: string;
+}
+
+export interface PostRepostedEvent {
+  postId: string;
+  postAuthorId: string;
+  reposterId: string;
 }

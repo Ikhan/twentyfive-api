@@ -80,6 +80,8 @@ model User {
   media           Media[]
   posts           Post[]
   comments        Comment[]
+  postLikes       PostLike[]
+  reposts         Repost[]
 
   @@index([hometownId])
   @@map("users")
@@ -202,6 +204,8 @@ model Post {
 
   photos   PostPhoto[]
   comments Comment[]
+  likes    PostLike[]
+  reposts  Repost[]
 
   @@index([createdAt(sort: Desc), id(sort: Desc)])
   @@index([authorId, createdAt(sort: Desc)])
@@ -234,4 +238,30 @@ model Comment {
 
   @@index([postId, createdAt, id])
   @@map("comments")
+}
+
+/// One like per user per post.
+model PostLike {
+  userId    String   @map("user_id") @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postId    String   @map("post_id") @db.Uuid
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@id([userId, postId])
+  @@index([postId])
+  @@map("post_likes")
+}
+
+/// Sharing a public post with your followers. One per user per post.
+model Repost {
+  userId    String   @map("user_id") @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postId    String   @map("post_id") @db.Uuid
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@id([userId, postId])
+  @@index([postId])
+  @@map("reposts")
 }

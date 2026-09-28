@@ -50,7 +50,7 @@ describe('Comments (e2e)', () => {
     expect(next.body.data.map((c: { body: string }) => c.body)).toEqual(['Bring an umbrella']);
 
     const read = await http().get(`/api/v1/posts/${postId}`).set('Authorization', arun.auth).expect(200);
-    expect(read.body.data.counts).toEqual({ comments: 2 });
+    expect(read.body.data.counts).toMatchObject({ comments: 2 });
   });
 
   it('validates comments', async () => {

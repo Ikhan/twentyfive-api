@@ -30,7 +30,8 @@ export class InMemoryPostsRepository implements PostsRepository {
       },
       district: { id: post.districtId, name: post.districtId, colors: ['#000', '#fff'] },
       photos: photos.map((p) => ({ id: p.mediaId, url: p.url })),
-      counts: { comments: 0 },
+      counts: { comments: 0, likes: 0, reposts: 0 },
+      viewer: { liked: false, reposted: false },
     };
     this.posts.push(view);
     return view;

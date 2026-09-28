@@ -27,7 +27,7 @@ export class InMemoryCommentsRepository implements CommentsRepository {
       .filter((c) => c.postId === postId && (!after || key(c) > `${after.t}|${after.id}`))
       .toSorted((a, b) => key(a).localeCompare(key(b)))
       .slice(0, take)
-      .map(({ postAuthorId: _, ...c }) => c);
+      .map(({ id, postId: pid, body, createdAt, author }) => ({ id, postId: pid, body, createdAt, author }));
   }
 
   async findOwnership(commentId: string): Promise<CommentOwnership | null> {
