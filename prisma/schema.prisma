@@ -43,6 +43,7 @@ model District {
 
   residents User[]
   followers DistrictFollow[]
+  posts     Post[]
 
   @@index([province])
   @@map("districts")
@@ -77,6 +78,7 @@ model User {
   following       Follow[]         @relation("follower")
   followers       Follow[]         @relation("followee")
   media           Media[]
+  posts           Post[]
 
   @@index([hometownId])
   @@map("users")
@@ -173,7 +175,48 @@ model Media {
   sizeBytes   Int?         @map("size_bytes")
   createdAt   DateTime     @default(now()) @map("created_at")
   readyAt     DateTime?    @map("ready_at")
+  postPhoto   PostPhoto?
 
   @@index([ownerId, status])
   @@map("media")
+}
+
+enum PostAudience {
+  EVERYONE
+  /// Only the author's approved followers.
+  FOLLOWERS
+}
+
+model Post {
+  id         String       @id @default(uuid()) @db.Uuid
+  authorId   String       @map("author_id") @db.Uuid
+  author     User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  /// The district the post is about (shown on that district's page). Not the author's location.
+  districtId String       @map("district_id")
+  district   District     @relation(fields: [districtId], references: [id])
+  body       String       @default("")
+  audience   PostAudience @default(EVERYONE)
+  createdAt  DateTime     @default(now()) @map("created_at")
+  updatedAt  DateTime     @updatedAt @map("updated_at")
+
+  photos PostPhoto[]
+
+  @@index([createdAt(sort: Desc), id(sort: Desc)])
+  @@index([authorId, createdAt(sort: Desc)])
+  @@index([districtId, createdAt(sort: Desc)])
+  @@map("posts")
+}
+
+model PostPhoto {
+  id       String @id @default(uuid()) @db.Uuid
+  postId   String @map("post_id") @db.Uuid
+  post     Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  /// Each upload can be used by one post only.
+  mediaId  String @unique @map("media_id") @db.Uuid
+  media    Media  @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  url      String
+  position Int
+
+  @@index([postId, position])
+  @@map("post_photos")
 }

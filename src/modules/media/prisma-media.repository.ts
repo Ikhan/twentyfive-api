@@ -36,7 +36,8 @@ export class PrismaMediaRepository implements MediaRepository {
 
   findReady(ownerId: string, ids: string[], purpose: MediaPurpose): Promise<MediaRecord[]> {
     return this.prisma.media.findMany({
-      where: { id: { in: ids }, ownerId, purpose, status: MediaStatus.READY },
+      // A post photo can only belong to one post, so ones already attached aren't available.
+      where: { id: { in: ids }, ownerId, purpose, status: MediaStatus.READY, postPhoto: { is: null } },
       select: SELECT,
     });
   }

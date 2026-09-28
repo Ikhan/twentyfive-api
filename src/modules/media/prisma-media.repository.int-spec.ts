@@ -45,5 +45,10 @@ describe('PrismaMediaRepository (integration)', () => {
 
     const found = await media.findReady(owner, [ready.id, pending.id, avatar.id, foreign.id], 'POST_PHOTO');
     expect(found.map((m) => m.id)).toEqual([ready.id]);
+
+    // Once attached to a post, it's no longer available.
+    const post = await prisma.post.create({ data: { authorId: owner, districtId: 'kandy', body: 'x' } });
+    await prisma.postPhoto.create({ data: { postId: post.id, mediaId: ready.id, url: 'u', position: 0 } });
+    await expect(media.findReady(owner, [ready.id], 'POST_PHOTO')).resolves.toEqual([]);
   });
 });
