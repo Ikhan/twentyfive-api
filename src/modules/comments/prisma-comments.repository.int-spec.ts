@@ -34,9 +34,12 @@ describe('PrismaCommentsRepository (integration)', () => {
       data: ['a', 'b', 'c'].map((body) => ({ postId, authorId: arun, body, createdAt: at })),
     });
     await prisma.comment.create({ data: { postId, authorId: arun, body: 'later', createdAt: new Date(+at + 1000) } });
-    const first = await comments.list(postId, { take: 2 });
+    const first = await comments.list(postId, kasun, { take: 2 });
     const last = first.at(-1)!;
-    const rest = await comments.list(postId, { take: 10, after: { t: last.createdAt.toISOString(), id: last.id } });
+    const rest = await comments.list(postId, kasun, {
+      take: 10,
+      after: { t: last.createdAt.toISOString(), id: last.id },
+    });
     const all = [...first, ...rest];
     expect(all).toHaveLength(4);
     expect(new Set(all.map((c) => c.id)).size).toBe(4);

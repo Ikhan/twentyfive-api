@@ -40,6 +40,17 @@ export class PrismaNotificationsRepository implements NotificationsRepository {
     await this.prisma.notification.deleteMany({ where: keyWhere(key) });
   }
 
+  async deleteBetween(userA: string, userB: string): Promise<void> {
+    await this.prisma.notification.deleteMany({
+      where: {
+        OR: [
+          { recipientId: userA, actorId: userB },
+          { recipientId: userB, actorId: userA },
+        ],
+      },
+    });
+  }
+
   async list(
     recipientId: string,
     { after, take }: { after?: NotificationCursor; take: number },

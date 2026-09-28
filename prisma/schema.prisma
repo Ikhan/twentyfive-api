@@ -84,6 +84,9 @@ model User {
   reposts         Repost[]
   notifications   Notification[]   @relation("recipient")
   notified        Notification[]   @relation("actor")
+  blocking        Block[]          @relation("blocker")
+  blockedBy       Block[]          @relation("blocked")
+  reports         Report[]
 
   @@index([hometownId])
   @@map("users")
@@ -298,4 +301,58 @@ model Notification {
   @@index([recipientId, createdAt(sort: Desc), id(sort: Desc)])
   @@index([recipientId, readAt])
   @@map("notifications")
+}
+
+/// The blocker and the blocked can't see or interact with each other's posts, or follow each other.
+model Block {
+  blockerId String   @map("blocker_id") @db.Uuid
+  blocker   User     @relation("blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blockedId String   @map("blocked_id") @db.Uuid
+  blocked   User     @relation("blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@id([blockerId, blockedId])
+  @@index([blockedId])
+  @@map("blocks")
+}
+
+enum ReportTarget {
+  POST
+  COMMENT
+  USER
+}
+
+enum ReportReason {
+  SPAM
+  HARASSMENT
+  HATE
+  VIOLENCE
+  NUDITY
+  MISINFORMATION
+  OTHER
+}
+
+enum ReportStatus {
+  OPEN
+  RESOLVED
+  DISMISSED
+}
+
+/// A user flagging a post, comment or profile for review. Targets aren't foreign keys,
+/// so reports outlive deleted content for moderators.
+model Report {
+  id         String       @id @default(uuid()) @db.Uuid
+  reporterId String       @map("reporter_id") @db.Uuid
+  reporter   User         @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+  targetType ReportTarget @map("target_type")
+  targetId   String       @map("target_id") @db.Uuid
+  reason     ReportReason
+  details    String       @default("")
+  status     ReportStatus @default(OPEN)
+  createdAt  DateTime     @default(now()) @map("created_at")
+
+  @@unique([reporterId, targetType, targetId])
+  @@index([status, createdAt])
+  @@index([targetType, targetId])
+  @@map("reports")
 }

@@ -13,6 +13,8 @@ export interface NotificationsRepository {
   hasUnread(key: NotificationKey): Promise<boolean>;
   /** Deletes every notification with this key (read or not). */
   deleteMatching(key: NotificationKey): Promise<void>;
+  /** Deletes notifications either user caused the other. */
+  deleteBetween(userA: string, userB: string): Promise<void>;
   /** Newest first, after `after`. */
   list(recipientId: string, page: { after?: NotificationCursor; take: number }): Promise<NotificationView[]>;
   unreadCount(recipientId: string): Promise<number>;

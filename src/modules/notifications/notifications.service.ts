@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { Paginated } from '../../common/api-response.js';
 import { decodeCursor, toPage } from '../../common/pagination/cursor.js';
+import { BLOCK_CHECKER, type BlockChecker } from '../moderation/block-checker.js';
 import { NotificationNotFoundError } from './notifications.errors.js';
 import { NOTIFICATIONS_REPOSITORY, type NotificationsRepository } from './notifications.repository.js';
 import type { NewNotification, NotificationCursor, NotificationView } from './notifications.types.js';
@@ -17,11 +18,15 @@ const isCursor = (v: unknown): v is NotificationCursor =>
 
 @Injectable()
 export class NotificationsService {
-  constructor(@Inject(NOTIFICATIONS_REPOSITORY) private readonly notifications: NotificationsRepository) {}
+  constructor(
+    @Inject(NOTIFICATIONS_REPOSITORY) private readonly notifications: NotificationsRepository,
+    @Inject(BLOCK_CHECKER) private readonly blocks: BlockChecker,
+  ) {}
 
-  /** Records a notification. Never notifies people about their own actions. */
+  /** Records a notification. Never about your own actions, or from someone across a block. */
   async notify(notification: NewNotification): Promise<void> {
     if (notification.recipientId === notification.actorId) return;
+    if (await this.blocks.isBlockedBetween(notification.recipientId, notification.actorId)) return;
     if (DEDUPLICATED.has(notification.type) && (await this.notifications.hasUnread(notification))) return;
     await this.notifications.create(notification);
   }
@@ -29,6 +34,11 @@ export class NotificationsService {
   /** A request was answered: the "wants to follow you" notification is no longer actionable. */
   async clearFollowRequest(recipientId: string, actorId: string): Promise<void> {
     await this.notifications.deleteMatching({ recipientId, actorId, type: 'FOLLOW_REQUEST' });
+  }
+
+  /** After a block: neither sees notifications caused by the other. */
+  async clearBetween(userA: string, userB: string): Promise<void> {
+    await this.notifications.deleteBetween(userA, userB);
   }
 
   async list(recipientId: string, page: { cursor?: string; limit: number }): Promise<Paginated<NotificationView>> {

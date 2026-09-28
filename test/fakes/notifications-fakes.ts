@@ -30,6 +30,12 @@ export class InMemoryNotificationsRepository implements NotificationsRepository 
     this.stored = this.stored.filter((n) => !this.matches(n, key));
   }
 
+  async deleteBetween(userA: string, userB: string): Promise<void> {
+    this.stored = this.stored.filter(
+      (n) => !((n.recipientId === userA && n.actorId === userB) || (n.recipientId === userB && n.actorId === userA)),
+    );
+  }
+
   async list(recipientId: string, { after, take }: { after?: NotificationCursor; take: number }) {
     const key = (n: Stored) => `${n.createdAt.toISOString()}|${n.id}`;
     return this.stored

@@ -35,7 +35,7 @@ export class CommentsService {
   ): Promise<Paginated<CommentView>> {
     await this.posts.get(postId, viewerId);
     const after = decodeCursor(page.cursor, isCursor);
-    const rows = await this.comments.list(postId, { after, take: page.limit + 1 });
+    const rows = await this.comments.list(postId, viewerId, { after, take: page.limit + 1 });
     return toPage(
       rows,
       page.limit,
