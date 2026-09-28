@@ -28,7 +28,7 @@ export class InMemoryPostsRepository implements PostsRepository {
         avatarUrl: null,
         isPrivate: author.isPrivate,
       },
-      district: { id: post.districtId, name: post.districtId, colors: ['#000', '#fff'] },
+      district: post.districtId ? { id: post.districtId, name: post.districtId, colors: ['#000', '#fff'] } : null,
       photos: photos.map((p) => ({ id: p.mediaId, url: p.url })),
       counts: { comments: 0, likes: 0, reposts: 0 },
       viewer: { liked: false, reposted: false },
@@ -57,7 +57,7 @@ export class InMemoryPostsRepository implements PostsRepository {
   async list(viewerId: string, scope: PostScope, page: { after?: PostCursor; take: number }): Promise<PostView[]> {
     const inScope = (p: PostView) =>
       scope.kind === 'everything' ||
-      (scope.kind === 'district' && p.district.id === scope.districtId) ||
+      (scope.kind === 'district' && p.district?.id === scope.districtId) ||
       (scope.kind === 'author' && p.author.id === scope.authorId) ||
       (scope.kind === 'following' && (p.author.id === viewerId || this.approved.has(`${viewerId}>${p.author.id}`)));
     const afterCursor = (p: PostView) =>

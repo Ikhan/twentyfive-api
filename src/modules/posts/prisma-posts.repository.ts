@@ -26,10 +26,10 @@ function selectFor(viewerId: string) {
 
 type Row = Prisma.PostGetPayload<{ select: ReturnType<typeof selectFor> }>;
 
-function toView({ district: { colorFrom, colorTo, ...district }, _count, likes, reposts, ...row }: Row): PostView {
+function toView({ district, _count, likes, reposts, ...row }: Row): PostView {
   return {
     ...row,
-    district: { ...district, colors: [colorFrom, colorTo] },
+    district: district && { id: district.id, name: district.name, colors: [district.colorFrom, district.colorTo] },
     counts: _count,
     viewer: { liked: likes.length > 0, reposted: reposts.length > 0 },
   };

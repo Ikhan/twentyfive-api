@@ -203,8 +203,9 @@ model Post {
   authorId   String       @map("author_id") @db.Uuid
   author     User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
   /// The district the post is about (shown on that district's page). Not the author's location.
-  districtId String       @map("district_id")
-  district   District     @relation(fields: [districtId], references: [id])
+  /// Null for posts to all districts: those appear in feeds but on no district page.
+  districtId String?      @map("district_id")
+  district   District?    @relation(fields: [districtId], references: [id])
   body       String       @default("")
   audience   PostAudience @default(EVERYONE)
   createdAt  DateTime     @default(now()) @map("created_at")

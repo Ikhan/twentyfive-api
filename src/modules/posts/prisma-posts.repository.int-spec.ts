@@ -46,6 +46,18 @@ describe('PrismaPostsRepository (integration)', () => {
     });
   const bodies = (list: PostView[]) => list.map((p) => p.body);
 
+  it('creates a post without a district', async () => {
+    const created = await posts.create({
+      authorId: u.kasun!,
+      body: 'all of us',
+      districtId: null,
+      audience: 'EVERYONE',
+      photos: [],
+    });
+    expect(created.district).toBeNull();
+    expect((await posts.findVisible(created.id, u.arun!))!.district).toBeNull();
+  });
+
   it('creates a post with its author, district colours and ordered photos', async () => {
     const mediaIds = [randomUUID(), randomUUID()];
     for (const id of mediaIds) {
