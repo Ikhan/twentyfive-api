@@ -19,6 +19,24 @@ describe('JwtAuthGuard', () => {
     await expect(guard.canActivate(httpContext({}, Controller.prototype.open, Controller))).resolves.toBe(true);
   });
 
+  it('attaches the user on @Public() routes when a valid token is present, and ignores bad ones', async () => {
+    class Controller {
+      @Public()
+      open(): void {}
+    }
+    const signedIn = httpContext(
+      { cookies: { access_token: await tokens.sign('u1') } },
+      Controller.prototype.open,
+      Controller,
+    );
+    await expect(guard.canActivate(signedIn)).resolves.toBe(true);
+    expect(signedIn.switchToHttp().getRequest().user).toEqual({ id: 'u1' });
+
+    const stale = httpContext({ cookies: { access_token: 'expired-or-junk' } }, Controller.prototype.open, Controller);
+    await expect(guard.canActivate(stale)).resolves.toBe(true);
+    expect(stale.switchToHttp().getRequest().user).toBeUndefined();
+  });
+
   it('requires a token everywhere else', async () => {
     await expect(guard.canActivate(httpContext({}))).rejects.toBeInstanceOf(UnauthorizedError);
   });

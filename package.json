@@ -25,11 +25,12 @@
     "prepare": "husky",
     "postinstall": "prisma generate",
     "db:generate": "prisma generate",
-    "db:migrate": "prisma migrate dev && prisma generate",
+    "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
-    "test:int": "vitest run --config ./vitest.config.int.ts"
+    "test:int": "vitest run --config ./vitest.config.int.ts",
+    "postdb:migrate": "prisma generate"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",

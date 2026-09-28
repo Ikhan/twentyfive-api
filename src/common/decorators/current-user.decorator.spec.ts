@@ -11,3 +11,11 @@ describe('currentUserFrom', () => {
     expect(() => currentUserFrom(httpContext({}))).toThrow(UnauthorizedError);
   });
 });
+
+describe('optionalUserFrom', () => {
+  it('returns the user when present and undefined otherwise', async () => {
+    const { optionalUserFrom } = await import('./optional-user.decorator.js');
+    expect(optionalUserFrom(httpContext({ user: { id: 'u1' } }))).toEqual({ id: 'u1' });
+    expect(optionalUserFrom(httpContext({}))).toBeUndefined();
+  });
+});
