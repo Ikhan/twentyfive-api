@@ -1,14 +1,23 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { Paginated } from '../../common/api-response.js';
 import { NotFoundError, ValidationError } from '../../common/errors/app-error.js';
+import { DomainEvent, type PostQuotedEvent } from '../../common/events/domain-events.js';
 import { decodeCursor, toPage } from '../../common/pagination/cursor.js';
 import { MediaService } from '../media/media.service.js';
-import { EmptyPostError, NotYourPostError, PostNotFoundError, PrivateAccountError } from './posts.errors.js';
+import {
+  CannotQuoteError,
+  EmptyPostError,
+  NotYourPostError,
+  PostNotFoundError,
+  PrivateAccountError,
+} from './posts.errors.js';
 import { POSTS_REPOSITORY, type PostsRepository } from './posts.repository.js';
 import type { PostAudience, PostCursor, PostScope, PostView } from './posts.types.js';
 
 export const MAX_POST_LENGTH = 1000;
 export const MAX_POST_PHOTOS = 4;
+const QUOTE_EXCERPT_LENGTH = 120;
 
 const isCursor = (v: unknown): v is PostCursor =>
   typeof v === 'object' &&
@@ -24,12 +33,13 @@ export class PostsService {
   constructor(
     @Inject(POSTS_REPOSITORY) private readonly posts: PostsRepository,
     private readonly media: MediaService,
+    private readonly events: EventEmitter2,
   ) {}
 
   async create(
     authorId: string,
     /** Leave out `districtId` to post to all districts (shown in feeds, on no district page). */
-    input: { body?: string; districtId?: string; audience?: PostAudience; mediaIds?: string[] },
+    input: { body?: string; districtId?: string; audience?: PostAudience; mediaIds?: string[]; quotedPostId?: string },
   ): Promise<PostView> {
     const body = input.body?.trim() ?? '';
     const mediaIds = input.mediaIds ?? [];
@@ -43,14 +53,34 @@ export class PostsService {
         field: 'districtId',
       });
     }
+    const quoted = input.quotedPostId ? await this.quotable(input.quotedPostId, authorId) : null;
     const photos = mediaIds.length ? await this.media.claim(authorId, mediaIds, 'POST_PHOTO') : [];
-    return this.posts.create({
+    const post = await this.posts.create({
       authorId,
       districtId: input.districtId ?? null,
       body,
       audience: input.audience ?? 'EVERYONE',
       photos: photos.map((p) => ({ mediaId: p.id, url: p.url })),
+      quotedPostId: quoted?.id ?? null,
     });
+    if (quoted) {
+      this.events.emit(DomainEvent.PostQuoted, {
+        postId: post.id,
+        quotedPostId: quoted.id,
+        quotedAuthorId: quoted.author.id,
+        quoterId: authorId,
+        excerpt: body.slice(0, QUOTE_EXCERPT_LENGTH),
+      } satisfies PostQuotedEvent);
+    }
+    return post;
+  }
+
+  /** A post you can quote: one you can see, and public (like reposts: quoting shares it further). */
+  private async quotable(postId: string, quoterId: string): Promise<PostView> {
+    const post = await this.posts.findVisible(postId, quoterId);
+    if (!post) throw new PostNotFoundError();
+    if (post.audience !== 'EVERYONE' || post.author.isPrivate) throw new CannotQuoteError();
+    return post;
   }
 
   async get(postId: string, viewerId: string): Promise<PostView> {

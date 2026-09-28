@@ -31,7 +31,7 @@ describe('PrismaReactionsRepository (integration)', () => {
     expect(await reactions.add('like', kasun, postId)).toBe(true);
 
     const forArun = (await posts.findVisible(postId, arun))!;
-    expect(forArun.counts).toEqual({ comments: 0, likes: 2, reposts: 1 });
+    expect(forArun.counts).toEqual({ comments: 0, likes: 2, reposts: 1, quotes: 0 });
     expect(forArun.viewer).toEqual({ liked: true, reposted: true });
     const forKasun = (await posts.list(kasun, { kind: 'everything' }, { take: 10 }))[0]!;
     expect(forKasun.viewer).toEqual({ liked: true, reposted: false });
@@ -43,7 +43,7 @@ describe('PrismaReactionsRepository (integration)', () => {
     await reactions.remove('like', arun, postId);
     await reactions.remove('like', arun, postId);
     await reactions.remove('repost', arun, postId);
-    expect((await posts.findVisible(postId, arun))!.counts).toEqual({ comments: 0, likes: 0, reposts: 0 });
+    expect((await posts.findVisible(postId, arun))!.counts).toEqual({ comments: 0, likes: 0, reposts: 0, quotes: 0 });
   });
 
   it('reports a missing post as not found', async () => {

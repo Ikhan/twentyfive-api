@@ -11,7 +11,11 @@ import { ReactionsService } from './reactions.service.js';
 
 async function setup() {
   const postsRepo = new InMemoryPostsRepository();
-  const posts = new PostsService(postsRepo, new MediaService(new InMemoryMediaRepository(), new FakeObjectStorage()));
+  const posts = new PostsService(
+    postsRepo,
+    new MediaService(new InMemoryMediaRepository(), new FakeObjectStorage()),
+    new EventEmitter2(),
+  );
   const repo = new InMemoryReactionsRepository();
   const events = new EventEmitter2();
   const reposted: unknown[] = [];

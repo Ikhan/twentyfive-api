@@ -24,6 +24,14 @@ export class CreatePostDto {
   @IsIn(['EVERYONE', 'FOLLOWERS'])
   audience?: 'EVERYONE' | 'FOLLOWERS';
 
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'Quote this post (it must be public). The quote still needs text or a photo.',
+  })
+  @IsOptional()
+  @IsUUID()
+  quotedPostId?: string;
+
   @ApiPropertyOptional({ type: [String], description: `Up to ${MAX_POST_PHOTOS} completed POST_PHOTO uploads` })
   @IsOptional()
   @IsArray()

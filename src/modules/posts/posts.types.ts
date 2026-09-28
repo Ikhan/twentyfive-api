@@ -25,12 +25,28 @@ export interface PostView {
   counts: PostCounts;
   /** The signed-in viewer's own reactions. */
   viewer: PostViewerState;
+  /** For quote posts, the quoted post (one level deep); null for ordinary posts. */
+  quoted: QuotedPost | null;
 }
+
+/** The post inside a quote: its content, or unavailable if it was deleted or the viewer can't see it. */
+export type QuotedPost =
+  | { available: false }
+  | {
+      available: true;
+      id: string;
+      body: string;
+      createdAt: Date;
+      author: UserSummary;
+      district: PostDistrict | null;
+      photos: PostPhotoView[];
+    };
 
 export interface PostCounts {
   comments: number;
   likes: number;
   reposts: number;
+  quotes: number;
 }
 
 export interface PostViewerState {
@@ -52,6 +68,8 @@ export interface NewPost {
   body: string;
   audience: PostAudience;
   photos: { mediaId: string; url: string }[];
+  /** Set for quote posts: the post being quoted. */
+  quotedPostId?: string | null;
 }
 
 export interface PostCursor {
