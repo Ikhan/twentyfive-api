@@ -6,6 +6,7 @@ function setup() {
   const service = {
     notify: vi.fn().mockResolvedValue(undefined),
     clearFollowRequest: vi.fn().mockResolvedValue(undefined),
+    clearBetween: vi.fn().mockResolvedValue(undefined),
   };
   return { service, listener: new NotificationsListener(service as unknown as NotificationsService) };
 }
@@ -42,6 +43,12 @@ describe('NotificationsListener', () => {
       [{ recipientId: 'kasun', actorId: 'arun', type: 'COMMENT', postId: 'p1', commentId: 'c1', excerpt: 'Nice' }],
       [{ recipientId: 'kasun', actorId: 'arun', type: 'REPOST', postId: 'p1' }],
     ]);
+  });
+
+  it('clears notifications between people after a block', async () => {
+    const { service, listener } = setup();
+    await listener.onUserBlocked({ blockerId: 'kasun', blockedId: 'arun' });
+    expect(service.clearBetween).toHaveBeenCalledWith('kasun', 'arun');
   });
 
   it('logs failures instead of throwing', async () => {

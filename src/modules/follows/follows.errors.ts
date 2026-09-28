@@ -23,3 +23,9 @@ export class NoFollowRequestError extends NotFoundError {
     super(`There’s no follow request from @${username}.`);
   }
 }
+
+export class BlockedFollowError extends ForbiddenError {
+  constructor(username: string) {
+    super(`You can’t follow @${username}.`);
+  }
+}

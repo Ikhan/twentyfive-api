@@ -4,7 +4,9 @@ import type { Paginated } from '../../common/api-response.js';
 import { DomainEvent, type FollowAcceptedEvent, type FollowCreatedEvent } from '../../common/events/domain-events.js';
 import { decodeCursor, toPage } from '../../common/pagination/cursor.js';
 import type { UserSummary } from '../users/users.types.js';
+import { BLOCK_CHECKER, type BlockChecker } from '../moderation/block-checker.js';
 import {
+  BlockedFollowError,
   CannotFollowSelfError,
   NoFollowRequestError,
   PrivateConnectionsError,
@@ -23,12 +25,14 @@ export class FollowsService {
   constructor(
     @Inject(FOLLOWS_REPOSITORY) private readonly follows: FollowsRepository,
     private readonly events: EventEmitter2,
+    @Inject(BLOCK_CHECKER) private readonly blocks: BlockChecker,
   ) {}
 
   /** Follows a public account, or sends a request to a private one. Idempotent. */
   async follow(viewerId: string, username: string): Promise<FollowStats> {
     const target = await this.target(username);
     if (target.id === viewerId) throw new CannotFollowSelfError();
+    if (await this.blocks.isBlockedBetween(viewerId, target.id)) throw new BlockedFollowError(target.username);
     if (!(await this.follows.status(viewerId, target.id))) {
       const status = target.isPrivate ? 'PENDING' : 'ACCEPTED';
       await this.follows.create(viewerId, target.id, status);
@@ -81,6 +85,11 @@ export class FollowsService {
     if ((await this.follows.status(requester.id, viewerId)) !== 'PENDING')
       throw new NoFollowRequestError(requesterUsername);
     await this.follows.remove(requester.id, viewerId);
+  }
+
+  /** Called when someone blocks someone: neither follows the other any more. */
+  async severBetween(userA: string, userB: string): Promise<void> {
+    await Promise.all([this.follows.remove(userA, userB), this.follows.remove(userB, userA)]);
   }
 
   /** Called when an account goes public: everyone who asked is now a follower. */

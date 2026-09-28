@@ -70,6 +70,19 @@ Photos go straight from the browser to S3; the API only hands out and verifies u
 Without S3 settings, upload endpoints return `503 STORAGE_UNAVAILABLE` and the rest of the API works normally.
 In production, serve the bucket through a CDN and set `S3_PUBLIC_URL`.
 
+## Social features
+
+- **Visibility** is one rule, applied everywhere posts are read (`visibleTo` in the posts repository):
+  your own posts; `EVERYONE` posts from public accounts; everything else only for approved followers;
+  never across a block. Comments, likes, reposts and reports all go through it.
+- **Reactions**: likes and reposts are idempotent `PUT`/`DELETE`s. Only public posts can be reposted.
+  Posts carry `counts` and the viewer's own `viewer.liked` / `viewer.reposted`.
+- **Notifications** are written by listeners on domain events (`src/common/events/domain-events.ts`):
+  follow, follow request, request accepted, comment, repost. Never for your own actions or across a block;
+  unread duplicates aren't repeated. They're best-effort: failures are logged and don't fail the action.
+- **Moderation**: blocking removes follows both ways and hides each other's posts, comments and
+  notifications. Reports (`POST /reports`) are stored for review; there's no admin API yet.
+
 ## Git workflow
 
 - `main`: releases only. Never commit or merge features directly.

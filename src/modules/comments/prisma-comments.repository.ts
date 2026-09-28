@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { Prisma } from '../../generated/prisma/client.js';
+import { notBlockedWith } from '../../prisma/block-filters.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { CommentsRepository } from './comments.repository.js';
 import type { CommentCursor, CommentOwnership, CommentView } from './comments.types.js';
@@ -20,10 +21,18 @@ export class PrismaCommentsRepository implements CommentsRepository {
     return this.prisma.comment.create({ data: input, select: SELECT });
   }
 
-  list(postId: string, { after, take }: { after?: CommentCursor; take: number }): Promise<CommentView[]> {
+  list(
+    postId: string,
+    viewerId: string,
+    { after, take }: { after?: CommentCursor; take: number },
+  ): Promise<CommentView[]> {
     const t = after && new Date(after.t);
     return this.prisma.comment.findMany({
-      where: { postId, ...(after && { OR: [{ createdAt: { gt: t } }, { createdAt: t, id: { gt: after.id } }] }) },
+      where: {
+        author: notBlockedWith(viewerId),
+        postId,
+        ...(after && { OR: [{ createdAt: { gt: t } }, { createdAt: t, id: { gt: after.id } }] }),
+      },
       select: SELECT,
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       take,

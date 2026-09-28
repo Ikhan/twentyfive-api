@@ -1,7 +1,9 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InMemoryFollowsRepository } from '../../../test/fakes/follows-fakes.js';
+import { FakeBlockChecker } from '../../../test/fakes/moderation-fakes.js';
 import { DomainEvent } from '../../common/events/domain-events.js';
 import {
+  BlockedFollowError,
   CannotFollowSelfError,
   NoFollowRequestError,
   PrivateConnectionsError,
@@ -17,7 +19,8 @@ function setup() {
   const accepted: unknown[] = [];
   events.on(DomainEvent.FollowCreated, (e) => created.push(e));
   events.on(DomainEvent.FollowAccepted, (e) => accepted.push(e));
-  return { repo, events, created, accepted, service: new FollowsService(repo, events) };
+  const blocks = new FakeBlockChecker();
+  return { repo, events, created, accepted, blocks, service: new FollowsService(repo, events, blocks) };
 }
 
 describe('FollowsService', () => {
@@ -140,5 +143,26 @@ describe('FollowsService', () => {
     await listener.onPrivacyChanged({ userId: 'u-sachini', isPrivate: false });
     expect(accepted).toHaveLength(2);
     await expect(service.stats('u-kasun', 'sachini')).resolves.toMatchObject({ followers: 2 });
+  });
+
+  describe('blocks', () => {
+    it('refuses to follow across a block, either way', async () => {
+      const { service, blocks, created } = setup();
+      blocks.pairs.add('u-tharushi>u-kasun');
+      await expect(service.follow('u-kasun', 'tharushi')).rejects.toThrow(BlockedFollowError);
+      blocks.pairs.clear();
+      blocks.pairs.add('u-kasun>u-tharushi');
+      await expect(service.follow('u-kasun', 'tharushi')).rejects.toThrow(BlockedFollowError);
+      expect(created).toEqual([]);
+    });
+
+    it('removes follows and requests both ways when someone blocks', async () => {
+      const { service, repo } = setup();
+      await service.follow('u-kasun', 'sachini');
+      await service.follow('u-sachini', 'kasun');
+      expect(repo.edges.size).toBe(2);
+      await new FollowsListener(service).onUserBlocked({ blockerId: 'u-sachini', blockedId: 'u-kasun' });
+      expect(repo.edges.size).toBe(0);
+    });
   });
 });

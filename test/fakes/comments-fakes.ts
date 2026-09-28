@@ -21,7 +21,11 @@ export class InMemoryCommentsRepository implements CommentsRepository {
     return view;
   }
 
-  async list(postId: string, { after, take }: { after?: CommentCursor; take: number }): Promise<CommentView[]> {
+  async list(
+    postId: string,
+    _viewerId: string,
+    { after, take }: { after?: CommentCursor; take: number },
+  ): Promise<CommentView[]> {
     const key = (c: CommentView) => `${c.createdAt.toISOString()}|${c.id}`;
     return this.comments
       .filter((c) => c.postId === postId && (!after || key(c) > `${after.t}|${after.id}`))

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client.js';
 import { FollowStatus, PostAudience } from '../../generated/prisma/enums.js';
+import { notBlockedWith } from '../../prisma/block-filters.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { PhotoAlreadyUsedError } from './posts.errors.js';
 import type { AuthorAccess, PostsRepository } from './posts.repository.js';
@@ -37,6 +38,7 @@ function toView({ district: { colorFrom, colorTo, ...district }, _count, likes, 
 /**
  * Who may see a post: its author; anyone, for EVERYONE posts by public accounts;
  * approved followers, for everything else (followers-only posts and private accounts).
+ * Never across a block, in either direction.
  */
 export function visibleTo(viewerId: string): Prisma.PostWhereInput {
   return {
@@ -45,6 +47,7 @@ export function visibleTo(viewerId: string): Prisma.PostWhereInput {
       { audience: PostAudience.EVERYONE, author: { isPrivate: false } },
       { author: { followers: { some: { followerId: viewerId, status: FollowStatus.ACCEPTED } } } },
     ],
+    author: notBlockedWith(viewerId),
   };
 }
 

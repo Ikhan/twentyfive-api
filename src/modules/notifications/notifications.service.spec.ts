@@ -1,3 +1,4 @@
+import { FakeBlockChecker } from '../../../test/fakes/moderation-fakes.js';
 import { InMemoryNotificationsRepository } from '../../../test/fakes/notifications-fakes.js';
 import { ValidationError } from '../../common/errors/app-error.js';
 import { NotificationNotFoundError } from './notifications.errors.js';
@@ -5,7 +6,8 @@ import { NotificationsService } from './notifications.service.js';
 
 function setup() {
   const repo = new InMemoryNotificationsRepository();
-  return { repo, service: new NotificationsService(repo) };
+  const blocks = new FakeBlockChecker();
+  return { repo, blocks, service: new NotificationsService(repo, blocks) };
 }
 
 describe('NotificationsService', () => {
@@ -13,6 +15,18 @@ describe('NotificationsService', () => {
     const { repo, service } = setup();
     await service.notify({ recipientId: 'kasun', actorId: 'kasun', type: 'REPOST', postId: 'p1' });
     expect(repo.stored).toEqual([]);
+  });
+
+  it('never notifies across a block, and clears old ones after blocking', async () => {
+    const { repo, blocks, service } = setup();
+    await service.notify({ recipientId: 'kasun', actorId: 'arun', type: 'FOLLOW' });
+    await service.notify({ recipientId: 'arun', actorId: 'kasun', type: 'FOLLOW' });
+    await service.notify({ recipientId: 'kasun', actorId: 'dilan', type: 'FOLLOW' });
+    blocks.pairs.add('kasun>arun');
+    await service.clearBetween('kasun', 'arun');
+    await service.notify({ recipientId: 'kasun', actorId: 'arun', type: 'REPOST', postId: 'p1' });
+    await service.notify({ recipientId: 'arun', actorId: 'kasun', type: 'REPOST', postId: 'p2' });
+    expect(repo.stored.map((n) => n.actorId)).toEqual(['dilan']);
   });
 
   it('does not repeat an unread follow or repost, but does once it has been read', async () => {

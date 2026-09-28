@@ -6,6 +6,7 @@ import {
   type FollowAcceptedEvent,
   type FollowCreatedEvent,
   type PostRepostedEvent,
+  type UserBlockedEvent,
 } from '../../common/events/domain-events.js';
 import { NotificationsService } from './notifications.service.js';
 
@@ -62,6 +63,11 @@ export class NotificationsListener {
         postId: e.postId,
       }),
     );
+  }
+
+  @OnEvent(DomainEvent.UserBlocked, { promisify: true })
+  onUserBlocked(e: UserBlockedEvent): Promise<void> {
+    return this.safely(DomainEvent.UserBlocked, () => this.notifications.clearBetween(e.blockerId, e.blockedId));
   }
 
   private async safely(event: string, work: () => Promise<void>): Promise<void> {
