@@ -29,3 +29,9 @@ export class PhotoAlreadyUsedError extends ValidationError {
     super('That photo is already on another post.', { field: 'mediaIds' });
   }
 }
+
+export class CannotQuoteError extends ForbiddenError {
+  constructor() {
+    super('Only public posts can be quoted.');
+  }
+}

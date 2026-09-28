@@ -5,9 +5,13 @@ import { notBlockedWith } from '../../prisma/block-filters.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { PhotoAlreadyUsedError } from './posts.errors.js';
 import type { AuthorAccess, PostsRepository } from './posts.repository.js';
-import type { NewPost, PostCursor, PostScope, PostView } from './posts.types.js';
+import type { NewPost, PostCursor, PostScope, PostView, QuotedPost } from './posts.types.js';
 
-/** Post fields, plus whether `viewerId` liked or reposted it. */
+const AUTHOR = { id: true, username: true, displayName: true, avatarUrl: true, isPrivate: true } as const;
+const DISTRICT = { select: { id: true, name: true, colorFrom: true, colorTo: true } } as const;
+const PHOTOS = { select: { id: true, url: true }, orderBy: { position: 'asc' } } as const;
+
+/** Post fields, plus whether `viewerId` liked or reposted it, and a quoted post with what's needed to check it's visible to them. */
 function selectFor(viewerId: string) {
   const mine = { where: { userId: viewerId }, select: { userId: true }, take: 1 } as const;
   return {
@@ -15,23 +19,74 @@ function selectFor(viewerId: string) {
     body: true,
     audience: true,
     createdAt: true,
-    author: { select: { id: true, username: true, displayName: true, avatarUrl: true, isPrivate: true } },
-    district: { select: { id: true, name: true, colorFrom: true, colorTo: true } },
-    photos: { select: { id: true, url: true }, orderBy: { position: 'asc' } },
-    _count: { select: { comments: true, likes: true, reposts: true } },
+    author: { select: AUTHOR },
+    district: DISTRICT,
+    photos: PHOTOS,
+    _count: { select: { comments: true, likes: true, reposts: true, quotedBy: true } },
     likes: mine,
     reposts: mine,
+    isQuote: true,
+    quotedPost: {
+      select: {
+        id: true,
+        body: true,
+        audience: true,
+        createdAt: true,
+        district: DISTRICT,
+        photos: PHOTOS,
+        author: {
+          select: {
+            ...AUTHOR,
+            followers: {
+              where: { followerId: viewerId, status: FollowStatus.ACCEPTED },
+              select: { followerId: true },
+              take: 1,
+            },
+            blocking: { where: { blockedId: viewerId }, select: { blockedId: true }, take: 1 },
+            blockedBy: { where: { blockerId: viewerId }, select: { blockerId: true }, take: 1 },
+          },
+        },
+      },
+    },
   } as const satisfies Prisma.PostSelect;
 }
 
 type Row = Prisma.PostGetPayload<{ select: ReturnType<typeof selectFor> }>;
+type DistrictRow = { id: string; name: string; colorFrom: string; colorTo: string } | null;
 
-function toView({ district, _count, likes, reposts, ...row }: Row): PostView {
+const toDistrict = (d: DistrictRow) =>
+  d && { id: d.id, name: d.name, colors: [d.colorFrom, d.colorTo] as [string, string] };
+
+/** The quoted post, if `viewerId` may see it (the same rule as `visibleTo`), else unavailable. */
+function toQuoted(row: Row, viewerId: string): QuotedPost | null {
+  if (!row.isQuote) return null;
+  const q = row.quotedPost;
+  if (!q) return { available: false };
+  const { followers, blocking, blockedBy, ...author } = q.author;
+  const blocked = blocking.length > 0 || blockedBy.length > 0;
+  const visible =
+    author.id === viewerId ||
+    (!blocked && ((q.audience === PostAudience.EVERYONE && !author.isPrivate) || followers.length > 0));
+  if (!visible) return { available: false };
   return {
-    ...row,
-    district: district && { id: district.id, name: district.name, colors: [district.colorFrom, district.colorTo] },
-    counts: _count,
+    available: true,
+    id: q.id,
+    body: q.body,
+    createdAt: q.createdAt,
+    author,
+    district: toDistrict(q.district),
+    photos: q.photos,
+  };
+}
+
+function toView(row: Row, viewerId: string): PostView {
+  const { district, _count, likes, reposts, isQuote: _isQuote, quotedPost: _quotedPost, ...post } = row;
+  return {
+    ...post,
+    district: toDistrict(district),
+    counts: { comments: _count.comments, likes: _count.likes, reposts: _count.reposts, quotes: _count.quotedBy },
     viewer: { liked: likes.length > 0, reposted: reposts.length > 0 },
+    quoted: toQuoted(row, viewerId),
   };
 }
 
@@ -82,13 +137,17 @@ function after(cursor?: PostCursor): Prisma.PostWhereInput {
 export class PrismaPostsRepository implements PostsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create({ photos, ...post }: NewPost): Promise<PostView> {
+  async create({ photos, quotedPostId, ...post }: NewPost): Promise<PostView> {
     try {
       const row = await this.prisma.post.create({
-        data: { ...post, photos: { create: photos.map((p, position) => ({ ...p, position })) } },
+        data: {
+          ...post,
+          ...(quotedPostId && { isQuote: true, quotedPostId }),
+          photos: { create: photos.map((p, position) => ({ ...p, position })) },
+        },
         select: selectFor(post.authorId),
       });
-      return toView(row);
+      return toView(row, post.authorId);
     } catch (error) {
       // Two posts raced for the same photo; the unique index on media_id decided.
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002')
@@ -102,7 +161,7 @@ export class PrismaPostsRepository implements PostsRepository {
       where: { AND: [{ id: postId }, visibleTo(viewerId)] },
       select: selectFor(viewerId),
     });
-    return row ? toView(row) : null;
+    return row ? toView(row, viewerId) : null;
   }
 
   async findAuthorId(postId: string): Promise<string | null> {
@@ -116,7 +175,7 @@ export class PrismaPostsRepository implements PostsRepository {
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: page.take,
     });
-    return rows.map(toView);
+    return rows.map((row) => toView(row, viewerId));
   }
 
   async delete(postId: string): Promise<void> {

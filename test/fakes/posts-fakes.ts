@@ -11,10 +11,12 @@ const AUTHORS: Record<string, AuthorAccess> = {
 /** Mirrors the SQL visibility rule in memory, for service unit tests. */
 export class InMemoryPostsRepository implements PostsRepository {
   readonly posts: PostView[] = [];
+  /** quote post id → quoted post id (null once the quoted post is deleted) */
+  readonly quotes = new Map<string, string | null>();
   readonly approved = new Set<string>(); // `${follower}>${author}`
   private clock = Date.parse('2026-09-01T00:00:00Z');
 
-  async create({ photos, ...post }: NewPost): Promise<PostView> {
+  async create({ photos, quotedPostId, ...post }: NewPost): Promise<PostView> {
     const author = AUTHORS[post.authorId]!;
     const view: PostView = {
       id: randomUUID(),
@@ -30,11 +32,35 @@ export class InMemoryPostsRepository implements PostsRepository {
       },
       district: post.districtId ? { id: post.districtId, name: post.districtId, colors: ['#000', '#fff'] } : null,
       photos: photos.map((p) => ({ id: p.mediaId, url: p.url })),
-      counts: { comments: 0, likes: 0, reposts: 0 },
+      counts: { comments: 0, likes: 0, reposts: 0, quotes: 0 },
       viewer: { liked: false, reposted: false },
+      quoted: null,
     };
     this.posts.push(view);
-    return view;
+    if (quotedPostId) this.quotes.set(view.id, quotedPostId);
+    return this.viewFor(view, post.authorId);
+  }
+
+  /** The post as `viewerId` sees it: quote counts and the quoted post (if they may see it). */
+  private viewFor(post: PostView, viewerId: string): PostView {
+    const quotes = [...this.quotes.values()].filter((id) => id === post.id).length;
+    let quoted: PostView['quoted'] = null;
+    if (this.quotes.has(post.id)) {
+      const original = this.posts.find((p) => p.id === this.quotes.get(post.id));
+      quoted =
+        original && this.visible(original, viewerId)
+          ? {
+              available: true,
+              id: original.id,
+              body: original.body,
+              createdAt: original.createdAt,
+              author: original.author,
+              district: original.district,
+              photos: original.photos,
+            }
+          : { available: false };
+    }
+    return { ...post, counts: { ...post.counts, quotes }, quoted };
   }
 
   private visible(post: PostView, viewerId: string): boolean {
@@ -47,7 +73,7 @@ export class InMemoryPostsRepository implements PostsRepository {
 
   async findVisible(postId: string, viewerId: string): Promise<PostView | null> {
     const post = this.posts.find((p) => p.id === postId);
-    return post && this.visible(post, viewerId) ? post : null;
+    return post && this.visible(post, viewerId) ? this.viewFor(post, viewerId) : null;
   }
 
   async findAuthorId(postId: string): Promise<string | null> {
@@ -67,12 +93,15 @@ export class InMemoryPostsRepository implements PostsRepository {
     return [...this.posts]
       .filter((p) => this.visible(p, viewerId) && inScope(p) && afterCursor(p))
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-      .slice(0, page.take);
+      .slice(0, page.take)
+      .map((p) => this.viewFor(p, viewerId));
   }
 
   async delete(postId: string): Promise<void> {
     const i = this.posts.findIndex((p) => p.id === postId);
     if (i >= 0) this.posts.splice(i, 1);
+    // Like the database: quotes of a deleted post keep saying they're quotes.
+    for (const [quote, quoted] of this.quotes) if (quoted === postId) this.quotes.set(quote, null);
   }
 
   async districtExists(districtId: string): Promise<boolean> {

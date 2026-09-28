@@ -5,6 +5,7 @@ import {
   type CommentCreatedEvent,
   type FollowAcceptedEvent,
   type FollowCreatedEvent,
+  type PostQuotedEvent,
   type PostRepostedEvent,
   type UserBlockedEvent,
 } from '../../common/events/domain-events.js';
@@ -61,6 +62,20 @@ export class NotificationsListener {
         actorId: e.reposterId,
         type: 'REPOST',
         postId: e.postId,
+      }),
+    );
+  }
+
+  /** "Kasun quoted your post": links to the quote, previewing what they said. */
+  @OnEvent(DomainEvent.PostQuoted, { promisify: true })
+  onPostQuoted(e: PostQuotedEvent): Promise<void> {
+    return this.safely(DomainEvent.PostQuoted, () =>
+      this.notifications.notify({
+        recipientId: e.quotedAuthorId,
+        actorId: e.quoterId,
+        type: 'QUOTE',
+        postId: e.postId,
+        excerpt: e.excerpt,
       }),
     );
   }

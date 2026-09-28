@@ -15,6 +15,7 @@ async function setup() {
   const postsService = new PostsService(
     posts,
     new MediaService(new InMemoryMediaRepository(), new FakeObjectStorage()),
+    new EventEmitter2(),
   );
   const repo = new InMemoryCommentsRepository((id) => posts.posts.find((p) => p.id === id)!.author.id);
   const events = new EventEmitter2();

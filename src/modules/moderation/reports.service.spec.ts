@@ -1,3 +1,4 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { FakeObjectStorage, InMemoryMediaRepository } from '../../../test/fakes/media-fakes.js';
 import { InMemoryReportsRepository } from '../../../test/fakes/moderation-fakes.js';
 import { InMemoryPostsRepository } from '../../../test/fakes/posts-fakes.js';
@@ -8,7 +9,11 @@ import { ReportsService } from './reports.service.js';
 
 async function setup() {
   const postsRepo = new InMemoryPostsRepository();
-  const posts = new PostsService(postsRepo, new MediaService(new InMemoryMediaRepository(), new FakeObjectStorage()));
+  const posts = new PostsService(
+    postsRepo,
+    new MediaService(new InMemoryMediaRepository(), new FakeObjectStorage()),
+    new EventEmitter2(),
+  );
   const repo = new InMemoryReportsRepository();
   const service = new ReportsService(repo, posts);
   const publicPost = await posts.create('u-kasun', { body: 'public', districtId: 'kandy' });

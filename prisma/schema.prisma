@@ -198,17 +198,23 @@ enum PostAudience {
 }
 
 model Post {
-  id         String       @id @default(uuid()) @db.Uuid
-  authorId   String       @map("author_id") @db.Uuid
-  author     User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  id           String       @id @default(uuid()) @db.Uuid
+  authorId     String       @map("author_id") @db.Uuid
+  author       User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
   /// The district the post is about (shown on that district's page). Not the author's location.
   /// Null for posts to all districts: those appear in feeds but on no district page.
-  districtId String?      @map("district_id")
-  district   District?    @relation(fields: [districtId], references: [id])
-  body       String       @default("")
-  audience   PostAudience @default(EVERYONE)
-  createdAt  DateTime     @default(now()) @map("created_at")
-  updatedAt  DateTime     @updatedAt @map("updated_at")
+  districtId   String?      @map("district_id")
+  district     District?    @relation(fields: [districtId], references: [id])
+  body         String       @default("")
+  audience     PostAudience @default(EVERYONE)
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+  /// Quote posts: the post being quoted. isQuote stays true if that post is deleted later
+  /// (quotedPostId becomes null), so the quote can say the original is unavailable.
+  isQuote      Boolean      @default(false) @map("is_quote")
+  quotedPostId String?      @map("quoted_post_id") @db.Uuid
+  quotedPost   Post?        @relation("Quotes", fields: [quotedPostId], references: [id], onDelete: SetNull)
+  quotedBy     Post[]       @relation("Quotes")
 
   photos        PostPhoto[]
   comments      Comment[]
@@ -219,6 +225,7 @@ model Post {
   @@index([createdAt(sort: Desc), id(sort: Desc)])
   @@index([authorId, createdAt(sort: Desc)])
   @@index([districtId, createdAt(sort: Desc)])
+  @@index([quotedPostId])
   @@map("posts")
 }
 
@@ -282,6 +289,7 @@ enum NotificationType {
   FOLLOW_ACCEPTED
   COMMENT
   REPOST
+  QUOTE
 }
 
 /// Something that happened to a user, caused by another user (the actor).

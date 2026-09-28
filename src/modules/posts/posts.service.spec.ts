@@ -1,16 +1,27 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { FakeObjectStorage, InMemoryMediaRepository, JPEG } from '../../../test/fakes/media-fakes.js';
 import { InMemoryPostsRepository } from '../../../test/fakes/posts-fakes.js';
 import { NotFoundError, ValidationError } from '../../common/errors/app-error.js';
+import { DomainEvent } from '../../common/events/domain-events.js';
 import { InvalidUploadError } from '../media/media.errors.js';
 import { MediaService } from '../media/media.service.js';
-import { EmptyPostError, NotYourPostError, PostNotFoundError, PrivateAccountError } from './posts.errors.js';
+import {
+  CannotQuoteError,
+  EmptyPostError,
+  NotYourPostError,
+  PostNotFoundError,
+  PrivateAccountError,
+} from './posts.errors.js';
 import { PostsService } from './posts.service.js';
 
 function setup() {
   const repo = new InMemoryPostsRepository();
   const storage = new FakeObjectStorage();
   const media = new MediaService(new InMemoryMediaRepository(), storage);
-  return { repo, storage, media, service: new PostsService(repo, media) };
+  const events = new EventEmitter2();
+  const quoted: unknown[] = [];
+  events.on(DomainEvent.PostQuoted, (e) => quoted.push(e));
+  return { repo, storage, media, quoted, service: new PostsService(repo, media, events) };
 }
 
 async function readyPhoto(ctx: ReturnType<typeof setup>, owner = 'u-kasun') {
@@ -163,6 +174,62 @@ describe('PostsService', () => {
       await service.delete(post.id, 'u-kasun');
       await expect(service.get(post.id, 'u-kasun')).rejects.toBeInstanceOf(PostNotFoundError);
       await expect(service.delete(post.id, 'u-kasun')).rejects.toBeInstanceOf(PostNotFoundError);
+    });
+  });
+
+  describe('quotes', () => {
+    it('quotes a public post, embedding it and announcing it', async () => {
+      const { service, quoted } = setup();
+      const original = await service.create('u-kasun', { body: 'Perahera tonight', districtId: 'kandy' });
+      const quote = await service.create('u-arun', { body: 'Wish I was there', quotedPostId: original.id });
+      expect(quote.quoted).toMatchObject({
+        available: true,
+        id: original.id,
+        body: 'Perahera tonight',
+        author: { id: 'u-kasun' },
+      });
+      expect(quoted).toEqual([
+        {
+          postId: quote.id,
+          quotedPostId: original.id,
+          quotedAuthorId: 'u-kasun',
+          quoterId: 'u-arun',
+          excerpt: 'Wish I was there',
+        },
+      ]);
+      expect((await service.get(original.id, 'u-arun')).counts.quotes).toBe(1);
+    });
+
+    it('only quotes public posts', async () => {
+      const { service, repo } = setup();
+      const fansOnly = await service.create('u-kasun', { body: 'fans', districtId: 'kandy', audience: 'FOLLOWERS' });
+      const privateAccount = await service.create('u-sachini', { body: 'secret', districtId: 'galle' });
+      repo.approved.add('u-arun>u-kasun').add('u-arun>u-sachini');
+      await expect(service.create('u-arun', { body: 'hm', quotedPostId: fansOnly.id })).rejects.toBeInstanceOf(
+        CannotQuoteError,
+      );
+      await expect(service.create('u-arun', { body: 'hm', quotedPostId: privateAccount.id })).rejects.toBeInstanceOf(
+        CannotQuoteError,
+      );
+    });
+
+    it('refuses to quote posts you can’t see or that don’t exist', async () => {
+      const { service } = setup();
+      const hidden = await service.create('u-sachini', { body: 'secret', districtId: 'galle' });
+      await expect(service.create('u-arun', { body: 'hm', quotedPostId: hidden.id })).rejects.toBeInstanceOf(
+        PostNotFoundError,
+      );
+      await expect(service.create('u-arun', { body: 'hm', quotedPostId: 'nope' })).rejects.toBeInstanceOf(
+        PostNotFoundError,
+      );
+    });
+
+    it('needs something to say (an empty quote is a repost, made by the app)', async () => {
+      const { service } = setup();
+      const original = await service.create('u-kasun', { body: 'Perahera tonight', districtId: 'kandy' });
+      await expect(service.create('u-arun', { body: '  ', quotedPostId: original.id })).rejects.toBeInstanceOf(
+        EmptyPostError,
+      );
     });
   });
 });

@@ -14,6 +14,8 @@ export const DomainEvent = {
   CommentCreated: 'comment.created',
   /** Someone reposted a post (first time only; repeats are no-ops). */
   PostReposted: 'post.reposted',
+  /** Someone quoted a post. */
+  PostQuoted: 'post.quoted',
   /** Someone blocked another user (first time only). */
   UserBlocked: 'user.blocked',
 } as const;
@@ -52,4 +54,13 @@ export interface PostRepostedEvent {
 export interface UserBlockedEvent {
   blockerId: string;
   blockedId: string;
+}
+
+export interface PostQuotedEvent {
+  /** The new quote post. */
+  postId: string;
+  quotedPostId: string;
+  quotedAuthorId: string;
+  quoterId: string;
+  excerpt: string;
 }

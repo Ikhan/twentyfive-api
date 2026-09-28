@@ -73,6 +73,39 @@ describe('Posts (e2e)', () => {
     expect(bodies(kandy)).not.toContain('Power cut again tonight?');
   });
 
+  it('quotes a public post, notifies its author, and shows unavailable once it’s deleted', async () => {
+    const original = (await create(kasun, { body: 'Perahera tonight', districtId: 'kandy' }).expect(201)).body.data;
+    const quote = await create(arun, { body: 'Wish I was there', quotedPostId: original.id }).expect(201);
+    expect(quote.body.data.quoted).toMatchObject({ available: true, id: original.id, author: { username: 'kasun' } });
+    const read = await http().get(`/api/v1/posts/${original.id}`).set('Authorization', kasun.auth).expect(200);
+    expect(read.body.data.counts.quotes).toBe(1);
+
+    await vi.waitFor(
+      async () => {
+        const inbox = await http().get('/api/v1/notifications').set('Authorization', kasun.auth).expect(200);
+        expect(inbox.body.data[0]).toMatchObject({
+          type: 'QUOTE',
+          actor: { username: 'arun' },
+          postId: quote.body.data.id,
+          excerpt: 'Wish I was there',
+        });
+      },
+      { timeout: 2000, interval: 25 },
+    );
+
+    await http().delete(`/api/v1/posts/${original.id}`).set('Authorization', kasun.auth).expect(200);
+    const after = await http().get(`/api/v1/posts/${quote.body.data.id}`).set('Authorization', arun.auth).expect(200);
+    expect(after.body.data.quoted).toEqual({ available: false });
+  });
+
+  it('won’t quote posts that aren’t public', async () => {
+    const fansOnly = (await create(kasun, { body: 'fans', districtId: 'kandy', audience: 'FOLLOWERS' }).expect(201))
+      .body.data;
+    const res = await create(kasun, { body: 'me again', quotedPostId: fansOnly.id }).expect(403);
+    expect(res.body.error.message).toBe('Only public posts can be quoted.');
+    await create(arun, { body: 'x', quotedPostId: 'not-a-uuid' }).expect(400);
+  });
+
   it('validates posts', async () => {
     const empty = await create(kasun, { body: '  ', districtId: 'kandy' }).expect(400);
     expect(empty.body.error.message).toBe('Write something or add a photo.');

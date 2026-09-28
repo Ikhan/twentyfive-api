@@ -46,6 +46,35 @@ describe('PrismaPostsRepository (integration)', () => {
     });
   const bodies = (list: PostView[]) => list.map((p) => p.body);
 
+  it('embeds the quoted post for each viewer, and says when it’s unavailable', async () => {
+    const original = await post('kasun', 'Perahera tonight');
+    const quote = await posts.create({
+      authorId: u.arun!,
+      body: 'Wish I was there',
+      districtId: null,
+      audience: 'EVERYONE',
+      photos: [],
+      quotedPostId: original.id,
+    });
+    expect(quote.quoted).toMatchObject({
+      available: true,
+      id: original.id,
+      body: 'Perahera tonight',
+      author: { username: 'kasun' },
+      district: { id: 'kandy' },
+    });
+    expect((await posts.findVisible(original.id, u.fan!))!.counts.quotes).toBe(1);
+
+    // Someone Kasun blocked sees the quote, but not the quoted post.
+    await prisma.block.create({ data: { blockerId: u.kasun!, blockedId: u.pending! } });
+    expect((await posts.findVisible(quote.id, u.pending!))!.quoted).toEqual({ available: false });
+
+    // Deleted originals leave the quote saying so.
+    await posts.delete(original.id);
+    expect((await posts.findVisible(quote.id, u.fan!))!.quoted).toEqual({ available: false });
+    expect((await post('arun', 'plain')).quoted).toBeNull();
+  });
+
   it('creates a post without a district', async () => {
     const created = await posts.create({
       authorId: u.kasun!,
