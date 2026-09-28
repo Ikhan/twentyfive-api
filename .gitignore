@@ -17,3 +17,6 @@ coverage/
 
 # logs
 *.log
+
+# Prisma client is generated (npm run db:generate / postinstall)
+src/generated/

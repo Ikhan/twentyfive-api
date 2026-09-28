@@ -11,6 +11,8 @@ nvm use                 # Node 24 (see .nvmrc)
 npm install
 cp .env.example .env
 docker compose up -d    # Postgres on :5433, MinIO (S3) on :9002, console :9003
+npm run db:migrate      # apply migrations to the dev database
+npm run db:seed         # load the 25 districts
 npm run start:dev       # http://localhost:3000/api/v1
 ```
 
@@ -35,6 +37,9 @@ API docs (non-production): http://localhost:3000/api/docs
   Services throw `AppError` subclasses, never HTTP exceptions.
 - **Config** is read only through `AppConfigService`; every variable is validated at startup.
 - **Tests**: `*.spec.ts` (unit), `*.int-spec.ts` (repository vs. real Postgres), `test/e2e/*.e2e-spec.ts` (HTTP).
+  Integration and e2e tests use the separate `twentyfive_test` database, migrated and seeded automatically.
+- **Database**: Prisma 7 with the `pg` driver adapter; the client is generated into `src/generated/prisma` (git-ignored).
+  Each feature adds its own models in its own migration.
 
 ## Git workflow
 

@@ -1,0 +1,46 @@
+// twentyfive.lk database schema.
+// Each feature adds its own models in its own migration (see prisma/migrations).
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Province {
+  WESTERN
+  CENTRAL
+  SOUTHERN
+  NORTHERN
+  EASTERN
+  NORTH_WESTERN
+  NORTH_CENTRAL
+  UVA
+  SABARAGAMUWA
+}
+
+/// One of Sri Lanka's 25 districts. Reference data, seeded from prisma/seed-data/districts.ts.
+model District {
+  /// URL slug, e.g. "kandy", "nuwara-eliya".
+  id          String   @id
+  name        String   @unique
+  nameSi      String   @map("name_si")
+  nameTa      String   @map("name_ta")
+  province    Province
+  tagline     String
+  description String
+  famousFor   String[] @map("famous_for")
+  /// Two hex colours used for the district's placeholder gradient.
+  colorFrom   String   @map("color_from")
+  colorTo     String   @map("color_to")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([province])
+  @@map("districts")
+}

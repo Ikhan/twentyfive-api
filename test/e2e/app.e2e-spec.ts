@@ -46,7 +46,7 @@ describe('App (e2e)', () => {
 
   it('GET /api/v1/health returns the success envelope', async () => {
     const res = await http().get('/api/v1/health').expect(200);
-    expect(res.body).toMatchObject({ success: true, error: null, data: { status: 'ok', checks: {} } });
+    expect(res.body).toMatchObject({ success: true, error: null, data: { status: 'ok', checks: { database: 'up' } } });
   });
 
   it('sends security headers', async () => {
