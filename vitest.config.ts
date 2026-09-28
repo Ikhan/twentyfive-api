@@ -12,11 +12,13 @@ export default defineConfig({
       provider: 'v8',
       include: ['src/**/*.ts'],
       // main.ts and app.setup.ts are bootstrap wiring, covered end-to-end by test/e2e/app.e2e-spec.ts.
-      // prisma.service.ts needs a real database: covered by src/prisma/prisma.service.int-spec.ts.
+      // Code that needs a real database is covered by the integration suite (*.int-spec.ts) instead:
+      // prisma.service.ts and every prisma-*.repository.ts.
       exclude: [
         'src/main.ts',
         'src/app.setup.ts',
         'src/prisma/prisma.service.ts',
+        'src/**/prisma-*.repository.ts',
         'src/generated/**',
         'src/**/*.module.ts',
         'src/**/*.spec.ts',

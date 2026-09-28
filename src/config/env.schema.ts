@@ -24,6 +24,26 @@ export const envSchema = z.object({
     )
     .pipe(z.array(z.url()).min(1)),
 
+  /** Where the web app lives: sign-in redirects back here. */
+  WEB_APP_URL: z.url().default('http://localhost:5173'),
+  /** Public base URL of this API, used to build OAuth redirect URIs (…/api/v1/auth/<provider>/callback). */
+  API_PUBLIC_URL: z.url().default('http://localhost:3000'),
+
+  /** Signs access tokens (HS256). At least 32 characters; generate with `openssl rand -base64 48`. */
+  JWT_ACCESS_SECRET: z.string().min(32, 'must be at least 32 characters'),
+  ACCESS_TOKEN_TTL_MINUTES: z.coerce.number().int().min(1).max(60).default(15),
+  REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().min(1).max(90).default(30),
+  /** Optional cookie domain, e.g. ".twentyfive.lk" so api. and www. share the session. */
+  COOKIE_DOMAIN: z.string().optional(),
+
+  /** OAuth apps. A provider is enabled only when both its id and secret are set. */
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  FACEBOOK_CLIENT_ID: z.string().optional(),
+  FACEBOOK_CLIENT_SECRET: z.string().optional(),
+  X_CLIENT_ID: z.string().optional(),
+  X_CLIENT_SECRET: z.string().optional(),
+
   /** Requests allowed per client per window (see ThrottlerModule). */
   RATE_LIMIT_TTL_SECONDS: z.coerce.number().int().positive().default(60),
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(120),

@@ -4,7 +4,9 @@ import { validateEnv } from './env.schema.js';
 
 const configFor = (raw: Record<string, string>) =>
   new AppConfigService(
-    new ConfigService(validateEnv({ DATABASE_URL: 'postgresql://u:p@localhost/db', ...raw })) as never,
+    new ConfigService(
+      validateEnv({ DATABASE_URL: 'postgresql://u:p@localhost/db', JWT_ACCESS_SECRET: 'x'.repeat(32), ...raw }),
+    ) as never,
   );
 
 describe('AppConfigService', () => {
