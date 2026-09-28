@@ -1,6 +1,6 @@
 import { Province } from '../../src/generated/prisma/enums.js';
 import type { DistrictsRepository } from '../../src/modules/districts/districts.repository.js';
-import type { DistrictRow } from '../../src/modules/districts/districts.types.js';
+import type { DistrictRow, FollowState } from '../../src/modules/districts/districts.types.js';
 import type { UserSummary } from '../../src/modules/users/users.types.js';
 
 const row = (id: string, name: string, province: Province): DistrictRow => ({
@@ -35,6 +35,19 @@ export class InMemoryDistrictsRepository implements DistrictsRepository {
 
   async followerCount(districtId: string): Promise<number> {
     return [...this.follows].filter((f) => f.endsWith(`:${districtId}`)).length;
+  }
+
+  async followStates(viewerId?: string): Promise<Map<string, FollowState>> {
+    const states = new Map<string, FollowState>();
+    for (const follow of this.follows) {
+      const [userId, districtId] = follow.split(':') as [string, string];
+      const state = states.get(districtId) ?? { followerCount: 0, followedByMe: false };
+      states.set(districtId, {
+        followerCount: state.followerCount + 1,
+        followedByMe: state.followedByMe || userId === viewerId,
+      });
+    }
+    return states;
   }
 
   async isFollowing(userId: string, districtId: string): Promise<boolean> {

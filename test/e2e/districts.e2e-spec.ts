@@ -35,6 +35,24 @@ describe('Districts (e2e)', () => {
     await http().get('/api/v1/districts?province=MARS').expect(400);
   });
 
+  it('includes follower counts, and your follows when signed in', async () => {
+    await http().put('/api/v1/districts/kandy/follow').set('Authorization', kasun.auth).expect(200);
+    const anon = await http().get('/api/v1/districts').expect(200);
+    expect(anon.body.data.find((d: { id: string }) => d.id === 'kandy')).toMatchObject({
+      followerCount: 1,
+      followedByMe: false,
+    });
+    expect(anon.body.data.find((d: { id: string }) => d.id === 'galle')).toMatchObject({
+      followerCount: 0,
+      followedByMe: false,
+    });
+    const mine = await http().get('/api/v1/districts').set('Authorization', kasun.auth).expect(200);
+    expect(mine.body.data.find((d: { id: string }) => d.id === 'kandy')).toMatchObject({
+      followerCount: 1,
+      followedByMe: true,
+    });
+  });
+
   it('shows detail publicly, with followedByMe when signed in', async () => {
     const anon = await http().get('/api/v1/districts/kandy').expect(200);
     expect(anon.body.data).toMatchObject({

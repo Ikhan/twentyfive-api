@@ -13,7 +13,9 @@ describe('DistrictsController', () => {
 
   it('passes the filter, viewer and paging through to the service', async () => {
     await controller.list({ province: 'UVA' });
-    expect(service.list).toHaveBeenCalledWith('UVA');
+    expect(service.list).toHaveBeenCalledWith('UVA', undefined);
+    await controller.list({}, { id: 'u1' });
+    expect(service.list).toHaveBeenLastCalledWith(undefined, 'u1');
     await controller.detail('kandy', { id: 'u1' });
     expect(service.detail).toHaveBeenCalledWith('kandy', 'u1');
     await controller.detail('kandy');

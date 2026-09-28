@@ -3,7 +3,7 @@ import type { Province } from '../../generated/prisma/enums.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { UserSummary } from '../users/users.types.js';
 import type { DistrictsRepository } from './districts.repository.js';
-import type { DistrictRow } from './districts.types.js';
+import type { DistrictRow, FollowState } from './districts.types.js';
 
 const SELECT = {
   id: true,
@@ -36,6 +36,20 @@ export class PrismaDistrictsRepository implements DistrictsRepository {
 
   followerCount(districtId: string): Promise<number> {
     return this.prisma.districtFollow.count({ where: { districtId } });
+  }
+
+  /** Two queries for all districts: counts grouped by district, and the viewer's own follows. */
+  async followStates(viewerId?: string): Promise<Map<string, FollowState>> {
+    const [counts, mine] = await Promise.all([
+      this.prisma.districtFollow.groupBy({ by: ['districtId'], _count: { _all: true } }),
+      viewerId
+        ? this.prisma.districtFollow.findMany({ where: { userId: viewerId }, select: { districtId: true } })
+        : [],
+    ]);
+    const followed = new Set(mine.map((f) => f.districtId));
+    return new Map(
+      counts.map((c) => [c.districtId, { followerCount: c._count._all, followedByMe: followed.has(c.districtId) }]),
+    );
   }
 
   async isFollowing(userId: string, districtId: string): Promise<boolean> {

@@ -8,7 +8,7 @@ import { Public } from '../../common/decorators/public.decorator.js';
 import { PageQueryDto } from '../../common/pagination/page-query.dto.js';
 import type { UserSummary } from '../users/users.types.js';
 import { DistrictsService } from './districts.service.js';
-import type { DistrictDetail, DistrictSummary, FollowState } from './districts.types.js';
+import type { DistrictDetail, DistrictListItem, FollowState } from './districts.types.js';
 import { DistrictListQueryDto } from './dto/district-query.dto.js';
 
 @ApiTags('districts')
@@ -18,9 +18,9 @@ export class DistrictsController {
 
   @Public()
   @Get()
-  @ApiOperation({ summary: 'All 25 districts A–Z (Explore)' })
-  list(@Query() query: DistrictListQueryDto): Promise<DistrictSummary[]> {
-    return this.districts.list(query.province);
+  @ApiOperation({ summary: 'All 25 districts A–Z with follower counts (and whether you follow each, when signed in)' })
+  list(@Query() query: DistrictListQueryDto, @OptionalUser() viewer?: AuthUser): Promise<DistrictListItem[]> {
+    return this.districts.list(query.province, viewer?.id);
   }
 
   @Public()
