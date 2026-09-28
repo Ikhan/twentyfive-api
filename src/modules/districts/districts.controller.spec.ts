@@ -7,6 +7,7 @@ describe('DistrictsController', () => {
     detail: vi.fn().mockResolvedValue({}),
     follow: vi.fn().mockResolvedValue({ followerCount: 1, followedByMe: true }),
     unfollow: vi.fn().mockResolvedValue({ followerCount: 0, followedByMe: false }),
+    trending: vi.fn().mockResolvedValue([]),
     residents: vi.fn().mockResolvedValue({ items: [], meta: { nextCursor: null, limit: 20 } }),
   };
   const controller = new DistrictsController(service as unknown as DistrictsService);
@@ -24,6 +25,8 @@ describe('DistrictsController', () => {
     expect(service.follow).toHaveBeenCalledWith('u1', 'kandy');
     await controller.unfollow({ id: 'u1' }, 'kandy');
     expect(service.unfollow).toHaveBeenCalledWith('u1', 'kandy');
+    await controller.trending({ limit: 5 });
+    expect(service.trending).toHaveBeenCalledWith(5);
     await controller.residents('kandy', { limit: 5, cursor: 'c' });
     expect(service.residents).toHaveBeenCalledWith('kandy', { limit: 5, cursor: 'c' });
   });
