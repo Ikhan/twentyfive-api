@@ -41,6 +41,70 @@ model District {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
+  residents User[]
+
   @@index([province])
   @@map("districts")
+}
+
+enum OAuthProvider {
+  GOOGLE
+  FACEBOOK
+  X
+}
+
+model User {
+  id          String    @id @default(uuid()) @db.Uuid
+  /// Lowercase handle shown as @username. 3–20 chars: a–z, 0–9, _.
+  username    String    @unique
+  displayName String    @map("display_name")
+  bio         String    @default("")
+  /// From the sign-in provider when it shares one. Never shown publicly.
+  email       String?
+  avatarUrl   String?   @map("avatar_url")
+  hometownId  String?   @map("hometown_id")
+  hometown    District? @relation(fields: [hometownId], references: [id])
+  isPrivate   Boolean   @default(false) @map("is_private")
+  /// Null until the user finishes onboarding.
+  onboardedAt DateTime? @map("onboarded_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  accounts OAuthAccount[]
+  sessions Session[]
+
+  @@index([hometownId])
+  @@map("users")
+}
+
+/// A provider login linked to a user (a user can link Google and Facebook, for example).
+model OAuthAccount {
+  id                String        @id @default(uuid()) @db.Uuid
+  provider          OAuthProvider
+  providerAccountId String        @map("provider_account_id")
+  userId            String        @map("user_id") @db.Uuid
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt         DateTime      @default(now()) @map("created_at")
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("oauth_accounts")
+}
+
+/// A refresh-token session. Tokens rotate on every refresh; only their SHA-256 hash is stored.
+/// All rotations of one sign-in share a familyId, so reuse of an old token revokes the whole family.
+model Session {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  familyId  String    @map("family_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  userAgent String?   @map("user_agent")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([familyId])
+  @@map("sessions")
 }

@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Post, type INestApplication } from '@nestjs/common';
 import { IsString, MaxLength } from 'class-validator';
 import request from 'supertest';
+import { Public } from '../../src/common/decorators/public.decorator.js';
 import { createTestApp } from '../helpers/create-test-app.js';
 
 class EchoDto {
@@ -10,6 +11,7 @@ class EchoDto {
 }
 
 /** Test-only routes to exercise global behaviour (validation, throttling, errors). */
+@Public()
 @Controller('test-probe')
 class ProbeController {
   @Get()

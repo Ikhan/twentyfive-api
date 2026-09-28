@@ -41,6 +41,21 @@ API docs (non-production): http://localhost:3000/api/docs
 - **Database**: Prisma 7 with the `pg` driver adapter; the client is generated into `src/generated/prisma` (git-ignored).
   Each feature adds its own models in its own migration.
 
+## Authentication
+
+Sign-in is social only (Google, Facebook, X), using OAuth 2.0 authorization code + PKCE.
+
+1. The web app navigates to `GET /api/v1/auth/<provider>/start`, which redirects to the provider.
+2. The provider redirects to `/api/v1/auth/<provider>/callback`; the API finds or creates the user,
+   sets the session cookies and redirects to `WEB_APP_URL/onboarding` (new users) or `WEB_APP_URL/`.
+3. Sessions: a 15-minute access token (`access_token`, httpOnly) and a 30-day rotating refresh token
+   (`refresh_token`, httpOnly, scoped to `/api/v1/auth`). Reusing an old refresh token revokes the whole session family.
+4. **CSRF**: cookie-authenticated `POST/PUT/PATCH/DELETE` requests must send `X-CSRF-Token` equal to the
+   readable `csrf_token` cookie. The web app should do this on every write, including `/auth/refresh` and `/auth/logout`.
+
+Every route requires a session unless decorated with `@Public()`. Use `@CurrentUser()` to get `{ id }`.
+Register each provider's redirect URI as `${API_PUBLIC_URL}/api/v1/auth/<google|facebook|x>/callback`.
+
 ## Git workflow
 
 - `main`: releases only. Never commit or merge features directly.

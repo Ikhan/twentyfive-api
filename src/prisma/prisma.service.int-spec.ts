@@ -1,13 +1,8 @@
-import { ConfigService } from '@nestjs/config';
-import { AppConfigService } from '../config/app-config.service.js';
-import { validateEnv } from '../config/env.schema.js';
-import { TEST_DATABASE_URL } from '../../test/setup/test-env.js';
+import { testPrismaService } from '../../test/helpers/test-prisma-service.js';
 import { DatabaseHealthIndicator } from './database.health.js';
-import { PrismaService } from './prisma.service.js';
 
 describe('PrismaService (integration)', () => {
-  const config = new AppConfigService(new ConfigService(validateEnv({ DATABASE_URL: TEST_DATABASE_URL })) as never);
-  const prisma = new PrismaService(config);
+  const prisma = testPrismaService();
 
   beforeAll(() => prisma.onModuleInit());
   afterAll(() => prisma.onModuleDestroy());
