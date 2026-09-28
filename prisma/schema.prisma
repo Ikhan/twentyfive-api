@@ -64,6 +64,8 @@ model User {
   /// From the sign-in provider when it shares one. Never shown publicly.
   email       String?
   avatarUrl   String?   @map("avatar_url")
+  /// Wide profile banner. When null, apps show the hometown district photo.
+  headerUrl   String?   @map("header_url")
   hometownId  String?   @map("hometown_id")
   hometown    District? @relation(fields: [hometownId], references: [id])
   isPrivate   Boolean   @default(false) @map("is_private")
@@ -161,6 +163,7 @@ model Follow {
 enum MediaPurpose {
   POST_PHOTO
   AVATAR
+  HEADER
 }
 
 enum MediaStatus {

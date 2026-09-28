@@ -57,6 +57,38 @@ describe('Media and avatars (e2e)', () => {
     expect(cleared.body.data.avatarUrl).toBeNull();
   });
 
+  it('upload → complete → use as profile header, shown on the public profile', async () => {
+    const ticket = await reserve(kasun, { purpose: 'HEADER', contentType: 'image/jpeg', sizeBytes: 2048 });
+    expect(ticket.upload.fields.key).toMatch(new RegExp(`^header/${kasun.id}/${ticket.mediaId}\\.jpg$`));
+    storage.put(ticket.upload.fields.key, JPEG, 2048);
+    const done = await http()
+      .post(`/api/v1/media/${ticket.mediaId}/complete`)
+      .set('Authorization', kasun.auth)
+      .expect(200);
+
+    const me = await http()
+      .put('/api/v1/users/me/header')
+      .set('Authorization', kasun.auth)
+      .send({ mediaId: ticket.mediaId })
+      .expect(200);
+    expect(me.body.data.headerUrl).toBe(done.body.data.url);
+    const pub = await http().get(`/api/v1/users/${kasun.username}`).set('Authorization', kasun.auth).expect(200);
+    expect(pub.body.data.headerUrl).toBe(done.body.data.url);
+
+    // An avatar upload can't be used as a header.
+    const avatar = await reserve(kasun);
+    storage.put(avatar.upload.fields.key, JPEG, 2048);
+    await http().post(`/api/v1/media/${avatar.mediaId}/complete`).set('Authorization', kasun.auth).expect(200);
+    await http()
+      .put('/api/v1/users/me/header')
+      .set('Authorization', kasun.auth)
+      .send({ mediaId: avatar.mediaId })
+      .expect(400);
+
+    const cleared = await http().delete('/api/v1/users/me/header').set('Authorization', kasun.auth).expect(200);
+    expect(cleared.body.data.headerUrl).toBeNull();
+  });
+
   it('validates upload requests', async () => {
     const gif = await http()
       .post('/api/v1/media/uploads')

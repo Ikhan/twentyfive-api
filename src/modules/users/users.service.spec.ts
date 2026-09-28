@@ -1,5 +1,5 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { FakeObjectStorage, InMemoryMediaRepository, JPEG } from '../../../test/fakes/media-fakes.js';
+import { FakeObjectStorage, InMemoryMediaRepository, JPEG, PNG } from '../../../test/fakes/media-fakes.js';
 import { InMemoryUsersRepository, profile } from '../../../test/fakes/users-fakes.js';
 import { InvalidUploadError } from '../media/media.errors.js';
 import { MediaService } from '../media/media.service.js';
@@ -169,6 +169,44 @@ describe('UsersService', () => {
       await expect(service.setAvatar('u-kasun', pending.mediaId)).rejects.toBeInstanceOf(InvalidUploadError);
       await expect(service.setAvatar('ghost', pending.mediaId)).rejects.toBeInstanceOf(NotFoundError);
       await expect(service.removeAvatar('ghost')).rejects.toBeInstanceOf(NotFoundError);
+    });
+  });
+
+  describe('header', () => {
+    it('sets a verified header upload as the profile header, and removes it', async () => {
+      const { service, media, storage } = setup();
+      const ticket = await media.createUpload('u-kasun', {
+        purpose: 'HEADER',
+        contentType: 'image/png',
+        sizeBytes: 1000,
+      });
+      storage.put(storage.presigned[0]!.key, PNG, 1000);
+      await media.complete('u-kasun', ticket.mediaId);
+
+      const withHeader = await service.setHeader('u-kasun', ticket.mediaId);
+      expect(withHeader.headerUrl).toMatch(/^https:\/\/cdn\.test\/header\/u-kasun\/.+\.png$/);
+      expect(withHeader.avatarUrl).toBeNull();
+      await expect(service.removeHeader('u-kasun')).resolves.toMatchObject({ headerUrl: null });
+    });
+
+    it('rejects avatars, unverified uploads and unknown users', async () => {
+      const { service, media, storage } = setup();
+      const avatar = await media.createUpload('u-kasun', {
+        purpose: 'AVATAR',
+        contentType: 'image/jpeg',
+        sizeBytes: 1000,
+      });
+      storage.put(storage.presigned[0]!.key, JPEG, 1000);
+      await media.complete('u-kasun', avatar.mediaId);
+      await expect(service.setHeader('u-kasun', avatar.mediaId)).rejects.toBeInstanceOf(InvalidUploadError);
+      const pending = await media.createUpload('u-kasun', {
+        purpose: 'HEADER',
+        contentType: 'image/jpeg',
+        sizeBytes: 1000,
+      });
+      await expect(service.setHeader('u-kasun', pending.mediaId)).rejects.toBeInstanceOf(InvalidUploadError);
+      await expect(service.setHeader('ghost', pending.mediaId)).rejects.toBeInstanceOf(NotFoundError);
+      await expect(service.removeHeader('ghost')).rejects.toBeInstanceOf(NotFoundError);
     });
   });
 });

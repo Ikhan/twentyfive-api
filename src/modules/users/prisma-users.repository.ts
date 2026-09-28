@@ -11,6 +11,7 @@ const SELECT = {
   displayName: true,
   bio: true,
   avatarUrl: true,
+  headerUrl: true,
   isPrivate: true,
   onboardedAt: true,
   createdAt: true,

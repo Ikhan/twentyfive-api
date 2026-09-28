@@ -6,9 +6,21 @@ import { NotFoundError } from '../../common/errors/app-error.js';
 import { usernameProblem } from '../../common/validation/username.js';
 import { UnknownDistrictError, UsernameNotAllowedError, UsernameTakenError } from './users.errors.js';
 import { USERS_REPOSITORY, type UsersRepository } from './users.repository.js';
+import type { MediaPurpose } from '../media/media.types.js';
 import type { MyProfile, ProfileChanges, PublicProfile } from './users.types.js';
 
 export type UsernameAvailability = { available: true } | { available: false; reason: 'invalid' | 'reserved' | 'taken' };
+
+/** Profile images: which upload purpose each accepts and where its URL is stored. */
+interface ProfilePhoto {
+  purpose: MediaPurpose;
+  field: 'avatarUrl' | 'headerUrl';
+}
+
+const PROFILE_PHOTOS = {
+  avatar: { purpose: 'AVATAR', field: 'avatarUrl' },
+  header: { purpose: 'HEADER', field: 'headerUrl' },
+} as const satisfies Record<string, ProfilePhoto>;
 
 @Injectable()
 export class UsersService {
@@ -53,15 +65,33 @@ export class UsersService {
   }
 
   /** Uses a verified AVATAR upload as the profile photo. */
-  async setAvatar(userId: string, mediaId: string): Promise<MyProfile> {
-    await this.me(userId);
-    const [photo] = await this.media.claim(userId, [mediaId], 'AVATAR');
-    return this.users.update(userId, { avatarUrl: photo!.url });
+  setAvatar(userId: string, mediaId: string): Promise<MyProfile> {
+    return this.setPhoto(userId, mediaId, PROFILE_PHOTOS.avatar);
   }
 
-  async removeAvatar(userId: string): Promise<MyProfile> {
+  removeAvatar(userId: string): Promise<MyProfile> {
+    return this.removePhoto(userId, PROFILE_PHOTOS.avatar);
+  }
+
+  /** Uses a verified HEADER upload as the profile banner. */
+  setHeader(userId: string, mediaId: string): Promise<MyProfile> {
+    return this.setPhoto(userId, mediaId, PROFILE_PHOTOS.header);
+  }
+
+  /** Back to the default banner (the hometown photo). */
+  removeHeader(userId: string): Promise<MyProfile> {
+    return this.removePhoto(userId, PROFILE_PHOTOS.header);
+  }
+
+  private async setPhoto(userId: string, mediaId: string, { purpose, field }: ProfilePhoto): Promise<MyProfile> {
     await this.me(userId);
-    return this.users.update(userId, { avatarUrl: null });
+    const [photo] = await this.media.claim(userId, [mediaId], purpose);
+    return this.users.update(userId, { [field]: photo!.url });
+  }
+
+  private async removePhoto(userId: string, { field }: ProfilePhoto): Promise<MyProfile> {
+    await this.me(userId);
+    return this.users.update(userId, { [field]: null });
   }
 
   /** Finishes onboarding. Allowed again later (it only updates fields), so a retry after a network error is safe. */

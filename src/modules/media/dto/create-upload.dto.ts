@@ -1,11 +1,12 @@
+import type { MediaPurpose } from '../media.types.js';
 import { ApiProperty } from '@nestjs/swagger';
 import { IsIn, IsInt, IsString, Max, Min } from 'class-validator';
 import { ALLOWED_IMAGE_TYPES } from '../image-signature.js';
 
 export class CreateUploadDto {
-  @ApiProperty({ enum: ['POST_PHOTO', 'AVATAR'] })
-  @IsIn(['POST_PHOTO', 'AVATAR'])
-  purpose!: 'POST_PHOTO' | 'AVATAR';
+  @ApiProperty({ enum: ['POST_PHOTO', 'AVATAR', 'HEADER'] })
+  @IsIn(['POST_PHOTO', 'AVATAR', 'HEADER'])
+  purpose!: MediaPurpose;
 
   @ApiProperty({ enum: ALLOWED_IMAGE_TYPES })
   @IsString()
