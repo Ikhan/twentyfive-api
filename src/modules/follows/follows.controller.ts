@@ -6,7 +6,8 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import { PageQueryDto } from '../../common/pagination/page-query.dto.js';
 import type { UserSummary } from '../users/users.types.js';
 import { FollowsService } from './follows.service.js';
-import type { FollowStats } from './follows.types.js';
+import type { FollowStats, SuggestedUser } from './follows.types.js';
+import { SuggestionsQueryDto } from './dto/suggestions-query.dto.js';
 
 @ApiTags('follows')
 @Controller('users/:username')
@@ -49,6 +50,18 @@ export class FollowsController {
     @Query() page: PageQueryDto,
   ): Promise<Paginated<UserSummary>> {
     return this.follows.following(user.id, username, page);
+  }
+}
+
+@ApiTags('follows')
+@Controller('suggestions')
+export class SuggestionsController {
+  constructor(private readonly follows: FollowsService) {}
+
+  @Get('people')
+  @ApiOperation({ summary: 'People to follow, best first, each with why (follows you, mutuals, hometown)' })
+  people(@CurrentUser() user: AuthUser, @Query() query: SuggestionsQueryDto): Promise<SuggestedUser[]> {
+    return this.follows.suggestions(user.id, query.limit);
   }
 }
 

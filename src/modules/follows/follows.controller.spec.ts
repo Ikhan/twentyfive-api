@@ -1,4 +1,4 @@
-import { FollowRequestsController, FollowsController } from './follows.controller.js';
+import { FollowRequestsController, FollowsController, SuggestionsController } from './follows.controller.js';
 import type { FollowsService } from './follows.service.js';
 
 describe('Follows controllers', () => {
@@ -11,6 +11,7 @@ describe('Follows controllers', () => {
     requests: vi.fn(),
     acceptRequest: vi.fn(),
     declineRequest: vi.fn(),
+    suggestions: vi.fn(),
   };
   const me = { id: 'u1' };
   const page = { limit: 10 };
@@ -37,5 +38,10 @@ describe('Follows controllers', () => {
     expect(service.requests).toHaveBeenCalledWith('u1', page);
     expect(service.acceptRequest).toHaveBeenCalledWith('u1', 'kasun');
     expect(service.declineRequest).toHaveBeenCalledWith('u1', 'dilan');
+  });
+
+  it('SuggestionsController asks for the signed-in user’s suggestions', async () => {
+    await new SuggestionsController(service as unknown as FollowsService).people(me, { limit: 4 });
+    expect(service.suggestions).toHaveBeenCalledWith('u1', 4);
   });
 });

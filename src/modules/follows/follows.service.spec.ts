@@ -11,6 +11,7 @@ import {
 } from './follows.errors.js';
 import { FollowsListener } from './follows.listener.js';
 import { FollowsService } from './follows.service.js';
+import type { SuggestionRow } from './follows.types.js';
 
 function setup() {
   const repo = new InMemoryFollowsRepository();
@@ -163,6 +164,52 @@ describe('FollowsService', () => {
       expect(repo.edges.size).toBe(2);
       await new FollowsListener(service).onUserBlocked({ blockerId: 'u-sachini', blockedId: 'u-kasun' });
       expect(repo.edges.size).toBe(0);
+    });
+  });
+
+  describe('suggestions', () => {
+    const row = (username: string, signals: Partial<SuggestionRow> = {}): SuggestionRow => ({
+      id: `u-${username}`,
+      username,
+      displayName: username,
+      avatarUrl: null,
+      isPrivate: false,
+      followsYou: false,
+      mutualCount: 0,
+      mutualUsernames: [],
+      hometown: { id: 'kandy', name: 'Kandy' },
+      sameHometown: false,
+      fromFollowedDistrict: false,
+      ...signals,
+    });
+
+    it('keeps the ranking and gives each person the most convincing reason', async () => {
+      const { service, repo } = setup();
+      repo.suggestionRows.push(
+        row('a', { followsYou: true, mutualCount: 2, sameHometown: true }),
+        row('b', { mutualCount: 3, mutualUsernames: ['dilan', 'tharushi'], sameHometown: true }),
+        row('c', { sameHometown: true, fromFollowedDistrict: true }),
+        row('d', { fromFollowedDistrict: true }),
+        row('e', { hometown: null }),
+      );
+      const people = await service.suggestions('u-kasun', 10);
+      expect(people.map((p) => [p.username, p.reason])).toEqual([
+        ['a', { kind: 'follows-you' }],
+        ['b', { kind: 'followed-by', usernames: ['dilan', 'tharushi'], count: 3 }],
+        ['c', { kind: 'hometown', district: { id: 'kandy', name: 'Kandy' } }],
+        ['d', { kind: 'followed-district', district: { id: 'kandy', name: 'Kandy' } }],
+        ['e', null],
+      ]);
+      // Only the summary and the reason leave the service, not the raw signals.
+      expect(Object.keys(people[0]!).sort()).toEqual([
+        'avatarUrl',
+        'displayName',
+        'id',
+        'isPrivate',
+        'reason',
+        'username',
+      ]);
+      expect(await service.suggestions('u-kasun', 2)).toHaveLength(2);
     });
   });
 });
