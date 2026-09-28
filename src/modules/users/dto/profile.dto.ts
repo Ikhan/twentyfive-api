@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsNotEmpty, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
+import { IsBoolean, IsNotEmpty, IsOptional, IsString, IsUUID, Matches, MaxLength } from 'class-validator';
 import { USERNAME_PATTERN } from '../../../common/validation/username.js';
 
 export const MAX_DISPLAY_NAME = 50;
@@ -84,4 +84,10 @@ export class UsernameQueryDto {
   @IsString()
   @MaxLength(50)
   username!: string;
+}
+
+export class SetAvatarDto {
+  @ApiProperty({ description: 'Id of a completed AVATAR upload (POST /media/uploads → /media/:id/complete)' })
+  @IsUUID()
+  mediaId!: string;
 }

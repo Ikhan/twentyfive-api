@@ -76,6 +76,7 @@ model User {
   districtFollows DistrictFollow[]
   following       Follow[]         @relation("follower")
   followers       Follow[]         @relation("followee")
+  media           Media[]
 
   @@index([hometownId])
   @@map("users")
@@ -145,4 +146,34 @@ model Follow {
   @@id([followerId, followeeId])
   @@index([followeeId, status])
   @@map("follows")
+}
+
+enum MediaPurpose {
+  POST_PHOTO
+  AVATAR
+}
+
+enum MediaStatus {
+  /// Upload URL issued; the browser may not have uploaded yet.
+  PENDING
+  /// Uploaded and verified (exists, within size limit, really an image).
+  READY
+}
+
+/// A photo uploaded straight to object storage (S3) by the browser.
+model Media {
+  id          String       @id @default(uuid()) @db.Uuid
+  ownerId     String       @map("owner_id") @db.Uuid
+  owner       User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  purpose     MediaPurpose
+  status      MediaStatus  @default(PENDING)
+  /// Object key in the bucket, e.g. post_photo/<owner>/<id>.jpg
+  key         String       @unique
+  contentType String       @map("content_type")
+  sizeBytes   Int?         @map("size_bytes")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  readyAt     DateTime?    @map("ready_at")
+
+  @@index([ownerId, status])
+  @@map("media")
 }

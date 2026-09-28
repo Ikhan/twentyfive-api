@@ -13,6 +13,7 @@ cp .env.example .env
 docker compose up -d    # Postgres on :5433, MinIO (S3) on :9002, console :9003
 npm run db:migrate      # apply migrations to the dev database
 npm run db:seed         # load the 25 districts
+npm run storage:init    # create the local MinIO bucket for photos
 npm run start:dev       # http://localhost:3000/api/v1
 ```
 
@@ -55,6 +56,19 @@ Sign-in is social only (Google, Facebook, X), using OAuth 2.0 authorization code
 
 Every route requires a session unless decorated with `@Public()`. Use `@CurrentUser()` to get `{ id }`.
 Register each provider's redirect URI as `${API_PUBLIC_URL}/api/v1/auth/<google|facebook|x>/callback`.
+
+## Photo uploads
+
+Photos go straight from the browser to S3; the API only hands out and verifies uploads.
+
+1. `POST /api/v1/media/uploads` `{ purpose: 'POST_PHOTO' | 'AVATAR', contentType, sizeBytes }` returns a presigned POST
+   (`upload.url` + `upload.fields`) valid for 5 minutes. S3 enforces the size limit (10 MB posts, 5 MB avatars) and type.
+2. The browser POSTs `multipart/form-data`: every field from `upload.fields`, then the file as `file`.
+3. `POST /api/v1/media/:id/complete` checks the object exists, its size, and its real type (magic bytes, JPEG/PNG/WebP only).
+4. Use the id: `PUT /api/v1/users/me/avatar { mediaId }`, or attach it to a post.
+
+Without S3 settings, upload endpoints return `503 STORAGE_UNAVAILABLE` and the rest of the API works normally.
+In production, serve the bucket through a CDN and set `S3_PUBLIC_URL`.
 
 ## Git workflow
 

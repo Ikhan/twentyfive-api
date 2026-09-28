@@ -19,6 +19,8 @@ export default defineConfig({
         'src/app.setup.ts',
         'src/prisma/prisma.service.ts',
         'src/**/prisma-*.repository.ts',
+        // Talks to real S3/MinIO: covered by s3-object-storage.int-spec.ts.
+        'src/modules/media/storage/s3-object-storage.ts',
         'src/generated/**',
         'src/**/*.module.ts',
         'src/**/*.spec.ts',

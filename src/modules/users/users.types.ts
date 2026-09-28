@@ -30,6 +30,8 @@ export interface MyProfile extends PublicProfile {
 }
 
 export interface ProfileChanges {
+  /** Set via PUT/DELETE /users/me/avatar only (from a verified upload). */
+  avatarUrl?: string | null;
   displayName?: string;
   username?: string;
   bio?: string;
