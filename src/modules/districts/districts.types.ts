@@ -33,3 +33,6 @@ export interface DistrictDetail extends DistrictSummary, FollowState {
   description: string;
   famousFor: string[];
 }
+
+/** A district in the Explore list: its summary plus follower count and whether you follow it. */
+export type DistrictListItem = DistrictSummary & FollowState;

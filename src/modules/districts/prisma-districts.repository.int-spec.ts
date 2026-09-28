@@ -23,6 +23,19 @@ describe('PrismaDistrictsRepository (integration)', () => {
     expect((await districts.list(Province.UVA)).map((d) => d.id)).toEqual(['badulla', 'monaragala']);
   });
 
+  it('counts followers per district and knows which the viewer follows, in two queries', async () => {
+    const a = (await user('a', 'kandy')).id;
+    const b = (await user('b', 'galle')).id;
+    await districts.follow(a, 'kandy');
+    await districts.follow(b, 'kandy');
+    await districts.follow(b, 'galle');
+    const states = await districts.followStates(a);
+    expect(states.get('kandy')).toEqual({ followerCount: 2, followedByMe: true });
+    expect(states.get('galle')).toEqual({ followerCount: 1, followedByMe: false });
+    expect(states.get('jaffna')).toBeUndefined(); // no followers: callers default to 0
+    expect((await districts.followStates()).get('kandy')).toEqual({ followerCount: 2, followedByMe: false });
+  });
+
   it('finds one district', async () => {
     await expect(districts.findById('kandy')).resolves.toMatchObject({
       name: 'Kandy',

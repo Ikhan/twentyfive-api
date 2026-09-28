@@ -1,12 +1,14 @@
 import type { Province } from '../../generated/prisma/enums.js';
 import type { UserSummary } from '../users/users.types.js';
-import type { DistrictRow } from './districts.types.js';
+import type { DistrictRow, FollowState } from './districts.types.js';
 
 export interface DistrictsRepository {
   /** All districts (optionally one province), A–Z. */
   list(province?: Province): Promise<DistrictRow[]>;
   findById(id: string): Promise<DistrictRow | null>;
   followerCount(districtId: string): Promise<number>;
+  /** Follower count per district (only districts with followers), and whether `viewerId` follows each. */
+  followStates(viewerId?: string): Promise<Map<string, FollowState>>;
   isFollowing(userId: string, districtId: string): Promise<boolean>;
   /** Idempotent. */
   follow(userId: string, districtId: string): Promise<void>;

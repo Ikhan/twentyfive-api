@@ -29,8 +29,25 @@ describe('DistrictsService', () => {
       province: { id: 'CENTRAL', name: 'Central' },
       tagline: 'Kandy tagline',
       colors: ['#000000', '#ffffff'],
+      followerCount: 0,
+      followedByMe: false,
     });
     expect((await setup().service.list(Province.CENTRAL)).map((d) => d.id)).toEqual(['kandy', 'matale']);
+  });
+
+  it('lists each district’s follower count, and which ones the viewer follows', async () => {
+    const { service, repo } = setup();
+    await repo.follow('u1', 'kandy');
+    await repo.follow('u2', 'kandy');
+    await repo.follow('u2', 'ampara');
+    const list = await service.list(undefined, 'u1');
+    expect(list.map((d) => [d.id, d.followerCount, d.followedByMe])).toEqual([
+      ['ampara', 1, false],
+      ['kandy', 2, true],
+      ['matale', 0, false],
+    ]);
+    // Signed out: counts, but nothing followed.
+    expect((await service.list()).every((d) => !d.followedByMe)).toBe(true);
   });
 
   it('returns detail with follower count and the viewer’s follow state', async () => {

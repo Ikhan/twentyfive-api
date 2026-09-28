@@ -5,7 +5,7 @@ import { decodeCursor, toPage } from '../../common/pagination/cursor.js';
 import type { Province } from '../../generated/prisma/enums.js';
 import type { UserSummary } from '../users/users.types.js';
 import { DISTRICTS_REPOSITORY, type DistrictsRepository } from './districts.repository.js';
-import type { DistrictDetail, DistrictRow, DistrictSummary, FollowState } from './districts.types.js';
+import type { DistrictDetail, DistrictListItem, DistrictRow, DistrictSummary, FollowState } from './districts.types.js';
 import { PROVINCE_NAMES } from './province.js';
 
 type ResidentsCursor = { u: string };
@@ -16,8 +16,13 @@ const isResidentsCursor = (v: unknown): v is ResidentsCursor =>
 export class DistrictsService {
   constructor(@Inject(DISTRICTS_REPOSITORY) private readonly districts: DistrictsRepository) {}
 
-  async list(province?: Province): Promise<DistrictSummary[]> {
-    return (await this.districts.list(province)).map(toSummary);
+  /** Explore: every district with its follower count (and, signed in, whether you follow it). */
+  async list(province?: Province, viewerId?: string): Promise<DistrictListItem[]> {
+    const [rows, states] = await Promise.all([this.districts.list(province), this.districts.followStates(viewerId)]);
+    return rows.map((row) => ({
+      ...toSummary(row),
+      ...(states.get(row.id) ?? { followerCount: 0, followedByMe: false }),
+    }));
   }
 
   async detail(districtId: string, viewerId?: string): Promise<DistrictDetail> {
