@@ -39,6 +39,11 @@ describe('PostsService', () => {
       });
     });
 
+    it('creates a post about no particular district (all districts)', async () => {
+      const post = await setup().service.create('u-kasun', { body: 'Power cut again?' });
+      expect(post).toMatchObject({ body: 'Power cut again?', district: null });
+    });
+
     it('attaches verified photos in order', async () => {
       const ctx = setup();
       const a = await readyPhoto(ctx);

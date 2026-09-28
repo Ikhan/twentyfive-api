@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { ArrayMaxSize, IsArray, IsIn, IsNotEmpty, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 import { PageQueryDto } from '../../../common/pagination/page-query.dto.js';
 import { MAX_POST_LENGTH, MAX_POST_PHOTOS } from '../posts.service.js';
@@ -10,10 +10,14 @@ export class CreatePostDto {
   @MaxLength(MAX_POST_LENGTH)
   body?: string;
 
-  @ApiProperty({ example: 'kandy', description: 'The district this post is about' })
+  @ApiPropertyOptional({
+    example: 'kandy',
+    description: 'The district this post is about. Leave out to post to all districts.',
+  })
+  @IsOptional()
   @IsString()
   @IsNotEmpty()
-  districtId!: string;
+  districtId?: string;
 
   @ApiPropertyOptional({ enum: ['EVERYONE', 'FOLLOWERS'], default: 'EVERYONE' })
   @IsOptional()

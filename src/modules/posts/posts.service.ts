@@ -28,7 +28,8 @@ export class PostsService {
 
   async create(
     authorId: string,
-    input: { body?: string; districtId: string; audience?: PostAudience; mediaIds?: string[] },
+    /** Leave out `districtId` to post to all districts (shown in feeds, on no district page). */
+    input: { body?: string; districtId?: string; audience?: PostAudience; mediaIds?: string[] },
   ): Promise<PostView> {
     const body = input.body?.trim() ?? '';
     const mediaIds = input.mediaIds ?? [];
@@ -37,7 +38,7 @@ export class PostsService {
       throw new ValidationError(`Posts can be up to ${MAX_POST_LENGTH} characters.`, { field: 'body' });
     if (new Set(mediaIds).size > MAX_POST_PHOTOS)
       throw new ValidationError(`You can add up to ${MAX_POST_PHOTOS} photos.`, { field: 'mediaIds' });
-    if (!(await this.posts.districtExists(input.districtId))) {
+    if (input.districtId !== undefined && !(await this.posts.districtExists(input.districtId))) {
       throw new ValidationError(`“${input.districtId}” isn’t one of Sri Lanka’s 25 districts.`, {
         field: 'districtId',
       });
@@ -45,7 +46,7 @@ export class PostsService {
     const photos = mediaIds.length ? await this.media.claim(authorId, mediaIds, 'POST_PHOTO') : [];
     return this.posts.create({
       authorId,
-      districtId: input.districtId,
+      districtId: input.districtId ?? null,
       body,
       audience: input.audience ?? 'EVERYONE',
       photos: photos.map((p) => ({ mediaId: p.id, url: p.url })),

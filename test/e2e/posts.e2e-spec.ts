@@ -64,6 +64,15 @@ describe('Posts (e2e)', () => {
     expect(reused.body.error.details).toEqual({ field: 'mediaIds' });
   });
 
+  it('posts to all districts when no district is given: in feeds, on no district page', async () => {
+    const created = await create(kasun, { body: 'Power cut again tonight?' }).expect(201);
+    expect(created.body.data.district).toBeNull();
+    const feed = await http().get('/api/v1/feed').set('Authorization', arun.auth).expect(200);
+    expect(bodies(feed)).toContain('Power cut again tonight?');
+    const kandy = await http().get('/api/v1/districts/kandy/posts').set('Authorization', arun.auth).expect(200);
+    expect(bodies(kandy)).not.toContain('Power cut again tonight?');
+  });
+
   it('validates posts', async () => {
     const empty = await create(kasun, { body: '  ', districtId: 'kandy' }).expect(400);
     expect(empty.body.error.message).toBe('Write something or add a photo.');

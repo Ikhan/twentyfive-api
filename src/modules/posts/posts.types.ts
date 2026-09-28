@@ -19,7 +19,8 @@ export interface PostView {
   audience: PostAudience;
   createdAt: Date;
   author: UserSummary;
-  district: PostDistrict;
+  /** Null for posts to all districts. */
+  district: PostDistrict | null;
   photos: PostPhotoView[];
   counts: PostCounts;
   /** The signed-in viewer's own reactions. */
@@ -46,7 +47,8 @@ export type PostScope =
 
 export interface NewPost {
   authorId: string;
-  districtId: string;
+  /** Null: about all districts, shown on no district page. */
+  districtId: string | null;
   body: string;
   audience: PostAudience;
   photos: { mediaId: string; url: string }[];
