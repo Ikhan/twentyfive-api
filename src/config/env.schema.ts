@@ -9,6 +9,9 @@ export const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
 
+  /** PostgreSQL connection string, e.g. postgresql://user:pass@localhost:5433/twentyfive */
+  DATABASE_URL: z.string().regex(/^postgres(ql)?:\/\//, 'must be a postgresql:// connection string'),
+
   /** Comma-separated list of browser origins allowed to call the API (the web app). */
   CORS_ORIGINS: z
     .string()

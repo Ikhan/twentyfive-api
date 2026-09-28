@@ -1,5 +1,6 @@
 import type { INestApplication, Type } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { TEST_DATABASE_URL } from '../setup/test-env.js';
 
 /**
  * Boots the real AppModule with production middleware (configureApp).
@@ -10,7 +11,7 @@ import { Test } from '@nestjs/testing';
 export async function createTestApp(
   options: { env?: Record<string, string>; extraControllers?: Type[] } = {},
 ): Promise<INestApplication> {
-  Object.assign(process.env, { NODE_ENV: 'test', ...options.env });
+  Object.assign(process.env, { NODE_ENV: 'test', DATABASE_URL: TEST_DATABASE_URL, ...options.env });
   const { AppModule } = await import('../../src/app.module.js');
   const { configureApp } = await import('../../src/app.setup.js');
   const moduleRef = await Test.createTestingModule({
