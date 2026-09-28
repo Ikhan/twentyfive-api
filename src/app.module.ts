@@ -10,6 +10,7 @@ import { DistrictsModule } from './modules/districts/districts.module.js';
 import { FollowsModule } from './modules/follows/follows.module.js';
 import { HealthModule } from './modules/health/health.module.js';
 import { MediaModule } from './modules/media/media.module.js';
+import { NotificationsModule } from './modules/notifications/notifications.module.js';
 import { PostsModule } from './modules/posts/posts.module.js';
 import { ReactionsModule } from './modules/reactions/reactions.module.js';
 import { UsersModule } from './modules/users/users.module.js';
@@ -35,6 +36,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
     PostsModule,
     CommentsModule,
     ReactionsModule,
+    NotificationsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

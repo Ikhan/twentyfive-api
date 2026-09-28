@@ -82,6 +82,8 @@ model User {
   comments        Comment[]
   postLikes       PostLike[]
   reposts         Repost[]
+  notifications   Notification[]   @relation("recipient")
+  notified        Notification[]   @relation("actor")
 
   @@index([hometownId])
   @@map("users")
@@ -202,10 +204,11 @@ model Post {
   createdAt  DateTime     @default(now()) @map("created_at")
   updatedAt  DateTime     @updatedAt @map("updated_at")
 
-  photos   PostPhoto[]
-  comments Comment[]
-  likes    PostLike[]
-  reposts  Repost[]
+  photos        PostPhoto[]
+  comments      Comment[]
+  likes         PostLike[]
+  reposts       Repost[]
+  notifications Notification[]
 
   @@index([createdAt(sort: Desc), id(sort: Desc)])
   @@index([authorId, createdAt(sort: Desc)])
@@ -228,13 +231,14 @@ model PostPhoto {
 }
 
 model Comment {
-  id        String   @id @default(uuid()) @db.Uuid
-  postId    String   @map("post_id") @db.Uuid
-  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
-  authorId  String   @map("author_id") @db.Uuid
-  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  body      String
-  createdAt DateTime @default(now()) @map("created_at")
+  id            String         @id @default(uuid()) @db.Uuid
+  postId        String         @map("post_id") @db.Uuid
+  post          Post           @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorId      String         @map("author_id") @db.Uuid
+  author        User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  body          String
+  createdAt     DateTime       @default(now()) @map("created_at")
+  notifications Notification[]
 
   @@index([postId, createdAt, id])
   @@map("comments")
@@ -264,4 +268,34 @@ model Repost {
   @@id([userId, postId])
   @@index([postId])
   @@map("reposts")
+}
+
+enum NotificationType {
+  FOLLOW
+  FOLLOW_REQUEST
+  FOLLOW_ACCEPTED
+  COMMENT
+  REPOST
+}
+
+/// Something that happened to a user, caused by another user (the actor).
+model Notification {
+  id          String           @id @default(uuid()) @db.Uuid
+  recipientId String           @map("recipient_id") @db.Uuid
+  recipient   User             @relation("recipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  actorId     String           @map("actor_id") @db.Uuid
+  actor       User             @relation("actor", fields: [actorId], references: [id], onDelete: Cascade)
+  type        NotificationType
+  postId      String?          @map("post_id") @db.Uuid
+  post        Post?            @relation(fields: [postId], references: [id], onDelete: Cascade)
+  commentId   String?          @map("comment_id") @db.Uuid
+  comment     Comment?         @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  /// Preview text, e.g. the start of a comment.
+  excerpt     String?
+  readAt      DateTime?        @map("read_at")
+  createdAt   DateTime         @default(now()) @map("created_at")
+
+  @@index([recipientId, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([recipientId, readAt])
+  @@map("notifications")
 }
