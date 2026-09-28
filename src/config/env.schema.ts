@@ -44,6 +44,22 @@ export const envSchema = z.object({
   X_CLIENT_ID: z.string().optional(),
   X_CLIENT_SECRET: z.string().optional(),
 
+  /**
+   * Object storage for photos (AWS S3, or MinIO locally). Uploads are disabled unless
+   * S3_BUCKET and both keys are set. S3_ENDPOINT is only needed for non-AWS (MinIO).
+   */
+  S3_BUCKET: z.string().optional(),
+  S3_REGION: z.string().default('ap-south-1'),
+  S3_ENDPOINT: z.url().optional(),
+  S3_ACCESS_KEY_ID: z.string().optional(),
+  S3_SECRET_ACCESS_KEY: z.string().optional(),
+  S3_FORCE_PATH_STYLE: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
+  /** Base URL photos are served from (CDN or public bucket), e.g. https://cdn.twentyfive.lk */
+  S3_PUBLIC_URL: z.url().optional(),
+
   /** Requests allowed per client per window (see ThrottlerModule). */
   RATE_LIMIT_TTL_SECONDS: z.coerce.number().int().positive().default(60),
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(120),

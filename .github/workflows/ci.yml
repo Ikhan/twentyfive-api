@@ -20,6 +20,13 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U twentyfive"
           --health-interval 5s --health-timeout 3s --health-retries 10
+      minio:
+        # bitnami/minio starts the server without a custom command (services can't pass one).
+        image: bitnami/minio:latest
+        env:
+          MINIO_ROOT_USER: twentyfive
+          MINIO_ROOT_PASSWORD: twentyfive-secret
+        ports: ['9002:9000']
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

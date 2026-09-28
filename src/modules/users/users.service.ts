@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { DomainEvent, type UserPrivacyChangedEvent } from '../../common/events/domain-events.js';
+import { MediaService } from '../media/media.service.js';
 import { NotFoundError } from '../../common/errors/app-error.js';
 import { usernameProblem } from '../../common/validation/username.js';
 import { UnknownDistrictError, UsernameNotAllowedError, UsernameTakenError } from './users.errors.js';
@@ -14,6 +15,7 @@ export class UsersService {
   constructor(
     @Inject(USERS_REPOSITORY) private readonly users: UsersRepository,
     private readonly events: EventEmitter2,
+    private readonly media: MediaService,
   ) {}
 
   async me(userId: string): Promise<MyProfile> {
@@ -48,6 +50,18 @@ export class UsersService {
       } satisfies UserPrivacyChangedEvent);
     }
     return after;
+  }
+
+  /** Uses a verified AVATAR upload as the profile photo. */
+  async setAvatar(userId: string, mediaId: string): Promise<MyProfile> {
+    await this.me(userId);
+    const [photo] = await this.media.claim(userId, [mediaId], 'AVATAR');
+    return this.users.update(userId, { avatarUrl: photo!.url });
+  }
+
+  async removeAvatar(userId: string): Promise<MyProfile> {
+    await this.me(userId);
+    return this.users.update(userId, { avatarUrl: null });
   }
 
   /** Finishes onboarding. Allowed again later (it only updates fields), so a retry after a network error is safe. */

@@ -1,7 +1,7 @@
 {
   "name": "twentyfive-api",
   "version": "0.0.1",
-  "description": "twentyfive.lk API — the social network for Sri Lanka’s 25 districts",
+  "description": "twentyfive.lk API \u2014 the social network for Sri Lanka\u2019s 25 districts",
   "author": "",
   "private": true,
   "license": "UNLICENSED",
@@ -30,9 +30,12 @@
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
     "test:int": "vitest run --config ./vitest.config.int.ts",
-    "postdb:migrate": "prisma generate"
+    "postdb:migrate": "prisma generate",
+    "storage:init": "tsx scripts/init-storage.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1141.0",
+    "@aws-sdk/s3-presigned-post": "^3.1141.0",
     "@nestjs/common": "^12.0.1",
     "@nestjs/config": "^12.0.1",
     "@nestjs/core": "^12.0.1",

@@ -1,5 +1,8 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { FakeObjectStorage, InMemoryMediaRepository, JPEG } from '../../../test/fakes/media-fakes.js';
 import { InMemoryUsersRepository, profile } from '../../../test/fakes/users-fakes.js';
+import { InvalidUploadError } from '../media/media.errors.js';
+import { MediaService } from '../media/media.service.js';
 import { DomainEvent } from '../../common/events/domain-events.js';
 import { NotFoundError } from '../../common/errors/app-error.js';
 import { UnknownDistrictError, UsernameNotAllowedError, UsernameTakenError } from './users.errors.js';
@@ -13,7 +16,9 @@ function setup() {
   const events = new EventEmitter2();
   const emitted: unknown[] = [];
   events.on(DomainEvent.UserPrivacyChanged, (e) => emitted.push(e));
-  return { repo, events, emitted, service: new UsersService(repo, events) };
+  const storage = new FakeObjectStorage();
+  const media = new MediaService(new InMemoryMediaRepository(), storage);
+  return { repo, events, emitted, storage, media, service: new UsersService(repo, events, media) };
 }
 
 describe('UsersService', () => {
@@ -135,6 +140,35 @@ describe('UsersService', () => {
       const input = { displayName: 'Kasun', username: 'kasun', hometownId: 'kandy' };
       await service.completeOnboarding('u-kasun', input);
       await expect(service.completeOnboarding('u-kasun', input)).resolves.toMatchObject({ onboarded: true });
+    });
+  });
+
+  describe('avatar', () => {
+    it('sets a verified avatar upload as the profile photo, and removes it', async () => {
+      const { service, media, storage } = setup();
+      const ticket = await media.createUpload('u-kasun', {
+        purpose: 'AVATAR',
+        contentType: 'image/jpeg',
+        sizeBytes: 1000,
+      });
+      storage.put(storage.presigned[0]!.key, JPEG, 1000);
+      await media.complete('u-kasun', ticket.mediaId);
+
+      const withPhoto = await service.setAvatar('u-kasun', ticket.mediaId);
+      expect(withPhoto.avatarUrl).toMatch(/^https:\/\/cdn\.test\/avatar\/u-kasun\/.+\.jpg$/);
+      await expect(service.removeAvatar('u-kasun')).resolves.toMatchObject({ avatarUrl: null });
+    });
+
+    it('rejects uploads that aren’t verified, aren’t yours or are post photos', async () => {
+      const { service, media } = setup();
+      const pending = await media.createUpload('u-kasun', {
+        purpose: 'AVATAR',
+        contentType: 'image/jpeg',
+        sizeBytes: 1000,
+      });
+      await expect(service.setAvatar('u-kasun', pending.mediaId)).rejects.toBeInstanceOf(InvalidUploadError);
+      await expect(service.setAvatar('ghost', pending.mediaId)).rejects.toBeInstanceOf(NotFoundError);
+      await expect(service.removeAvatar('ghost')).rejects.toBeInstanceOf(NotFoundError);
     });
   });
 });
