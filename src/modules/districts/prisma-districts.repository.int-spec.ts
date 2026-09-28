@@ -19,7 +19,7 @@ describe('PrismaDistrictsRepository (integration)', () => {
   it('lists all 25 A–Z, or one province', async () => {
     const all = await districts.list();
     expect(all).toHaveLength(25);
-    expect(all.map((d) => d.name)).toEqual([...all.map((d) => d.name)].sort());
+    expect(all.map((d) => d.name)).toEqual(all.map((d) => d.name).sort());
     expect((await districts.list(Province.UVA)).map((d) => d.id)).toEqual(['badulla', 'monaragala']);
   });
 
