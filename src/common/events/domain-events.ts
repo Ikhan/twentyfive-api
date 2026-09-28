@@ -10,6 +10,8 @@ export const DomainEvent = {
   FollowCreated: 'follow.created',
   /** A private account approved a follow request. */
   FollowAccepted: 'follow.accepted',
+  /** Someone commented on a post. */
+  CommentCreated: 'comment.created',
 } as const;
 
 export interface UserPrivacyChangedEvent {
@@ -26,4 +28,13 @@ export interface FollowCreatedEvent {
 export interface FollowAcceptedEvent {
   followerId: string;
   followeeId: string;
+}
+
+export interface CommentCreatedEvent {
+  commentId: string;
+  postId: string;
+  postAuthorId: string;
+  commenterId: string;
+  /** First part of the comment, for notification previews. */
+  excerpt: string;
 }
