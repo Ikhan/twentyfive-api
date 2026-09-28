@@ -6,21 +6,32 @@ import { PhotoAlreadyUsedError } from './posts.errors.js';
 import type { AuthorAccess, PostsRepository } from './posts.repository.js';
 import type { NewPost, PostCursor, PostScope, PostView } from './posts.types.js';
 
-const SELECT = {
-  id: true,
-  body: true,
-  audience: true,
-  createdAt: true,
-  author: { select: { id: true, username: true, displayName: true, avatarUrl: true, isPrivate: true } },
-  district: { select: { id: true, name: true, colorFrom: true, colorTo: true } },
-  photos: { select: { id: true, url: true }, orderBy: { position: 'asc' } },
-  _count: { select: { comments: true } },
-} as const satisfies Prisma.PostSelect;
+/** Post fields, plus whether `viewerId` liked or reposted it. */
+function selectFor(viewerId: string) {
+  const mine = { where: { userId: viewerId }, select: { userId: true }, take: 1 } as const;
+  return {
+    id: true,
+    body: true,
+    audience: true,
+    createdAt: true,
+    author: { select: { id: true, username: true, displayName: true, avatarUrl: true, isPrivate: true } },
+    district: { select: { id: true, name: true, colorFrom: true, colorTo: true } },
+    photos: { select: { id: true, url: true }, orderBy: { position: 'asc' } },
+    _count: { select: { comments: true, likes: true, reposts: true } },
+    likes: mine,
+    reposts: mine,
+  } as const satisfies Prisma.PostSelect;
+}
 
-type Row = Prisma.PostGetPayload<{ select: typeof SELECT }>;
+type Row = Prisma.PostGetPayload<{ select: ReturnType<typeof selectFor> }>;
 
-function toView({ district: { colorFrom, colorTo, ...district }, _count, ...row }: Row): PostView {
-  return { ...row, district: { ...district, colors: [colorFrom, colorTo] }, counts: { comments: _count.comments } };
+function toView({ district: { colorFrom, colorTo, ...district }, _count, likes, reposts, ...row }: Row): PostView {
+  return {
+    ...row,
+    district: { ...district, colors: [colorFrom, colorTo] },
+    counts: _count,
+    viewer: { liked: likes.length > 0, reposted: reposts.length > 0 },
+  };
 }
 
 /**
@@ -72,7 +83,7 @@ export class PrismaPostsRepository implements PostsRepository {
     try {
       const row = await this.prisma.post.create({
         data: { ...post, photos: { create: photos.map((p, position) => ({ ...p, position })) } },
-        select: SELECT,
+        select: selectFor(post.authorId),
       });
       return toView(row);
     } catch (error) {
@@ -86,7 +97,7 @@ export class PrismaPostsRepository implements PostsRepository {
   async findVisible(postId: string, viewerId: string): Promise<PostView | null> {
     const row = await this.prisma.post.findFirst({
       where: { AND: [{ id: postId }, visibleTo(viewerId)] },
-      select: SELECT,
+      select: selectFor(viewerId),
     });
     return row ? toView(row) : null;
   }
@@ -98,7 +109,7 @@ export class PrismaPostsRepository implements PostsRepository {
   async list(viewerId: string, scope: PostScope, page: { after?: PostCursor; take: number }): Promise<PostView[]> {
     const rows = await this.prisma.post.findMany({
       where: { AND: [visibleTo(viewerId), scopeWhere(viewerId, scope), after(page.after)] },
-      select: SELECT,
+      select: selectFor(viewerId),
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: page.take,
     });

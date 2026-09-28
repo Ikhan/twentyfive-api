@@ -25,7 +25,7 @@ describe('PrismaCommentsRepository (integration)', () => {
   it('creates comments with their author and counts them on the post', async () => {
     const c = await comments.create({ postId, authorId: arun, body: 'Nice' });
     expect(c).toMatchObject({ postId, body: 'Nice', author: { id: arun, username: 'arun', displayName: 'Arun' } });
-    expect((await posts.findVisible(postId, kasun))!.counts).toEqual({ comments: 1 });
+    expect((await posts.findVisible(postId, kasun))!.counts).toMatchObject({ comments: 1 });
   });
 
   it('pages oldest first with ties broken by id', async () => {

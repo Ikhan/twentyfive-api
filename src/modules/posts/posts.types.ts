@@ -22,10 +22,19 @@ export interface PostView {
   district: PostDistrict;
   photos: PostPhotoView[];
   counts: PostCounts;
+  /** The signed-in viewer's own reactions. */
+  viewer: PostViewerState;
 }
 
 export interface PostCounts {
   comments: number;
+  likes: number;
+  reposts: number;
+}
+
+export interface PostViewerState {
+  liked: boolean;
+  reposted: boolean;
 }
 
 /** Which posts a list should contain; visibility rules are always applied on top. */
