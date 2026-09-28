@@ -3,6 +3,15 @@ export interface DistrictRef {
   name: string;
 }
 
+/** A user in a list (people from a district, followers, post authors). */
+export interface UserSummary {
+  id: string;
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+  isPrivate: boolean;
+}
+
 /** What anyone can see about a user. Never includes email. */
 export interface PublicProfile {
   id: string;

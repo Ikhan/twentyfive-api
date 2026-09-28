@@ -8,7 +8,8 @@ import { COOKIE } from '../auth-cookies.js';
 import { AccessTokenService } from '../tokens/access-token.service.js';
 
 /**
- * Global guard: every route needs a valid access token unless marked @Public().
+ * Global guard: every route needs a valid access token unless marked @Public()
+ * (public routes still attach the user when a valid token is present).
  * Accepts the httpOnly cookie (web) or an Authorization: Bearer header (future mobile clients).
  */
 @Injectable()
@@ -23,10 +24,21 @@ export class JwtAuthGuard implements CanActivate {
       context.getHandler(),
       context.getClass(),
     ]);
-    if (isPublic) return true;
-
     const request = context.switchToHttp().getRequest<Request & AuthenticatedRequest>();
     const token = bearerToken(request) ?? (request.cookies?.[COOKIE.access] as string | undefined);
+
+    if (isPublic) {
+      // Optional sign-in: public routes still know who you are when you have a valid session
+      // (e.g. "you follow this district"), but never fail because of a missing or stale token.
+      if (token) {
+        request.user = await this.tokens.verify(token).then(
+          (id) => ({ id }),
+          () => undefined,
+        );
+      }
+      return true;
+    }
+
     if (!token) throw new UnauthorizedError('Please sign in.');
     request.user = { id: await this.tokens.verify(token) };
     return true;

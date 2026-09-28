@@ -42,6 +42,7 @@ model District {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   residents User[]
+  followers DistrictFollow[]
 
   @@index([province])
   @@map("districts")
@@ -70,8 +71,9 @@ model User {
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
-  accounts OAuthAccount[]
-  sessions Session[]
+  accounts        OAuthAccount[]
+  sessions        Session[]
+  districtFollows DistrictFollow[]
 
   @@index([hometownId])
   @@map("users")
@@ -107,4 +109,17 @@ model Session {
   @@index([userId])
   @@index([familyId])
   @@map("sessions")
+}
+
+/// Following a district puts its posts in your feed and counts towards its followers.
+model DistrictFollow {
+  userId     String   @map("user_id") @db.Uuid
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  districtId String   @map("district_id")
+  district   District @relation(fields: [districtId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@id([userId, districtId])
+  @@index([districtId])
+  @@map("district_follows")
 }
