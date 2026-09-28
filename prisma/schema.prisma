@@ -1,0 +1,148 @@
+// twentyfive.lk database schema.
+// Each feature adds its own models in its own migration (see prisma/migrations).
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Province {
+  WESTERN
+  CENTRAL
+  SOUTHERN
+  NORTHERN
+  EASTERN
+  NORTH_WESTERN
+  NORTH_CENTRAL
+  UVA
+  SABARAGAMUWA
+}
+
+/// One of Sri Lanka's 25 districts. Reference data, seeded from prisma/seed-data/districts.ts.
+model District {
+  /// URL slug, e.g. "kandy", "nuwara-eliya".
+  id          String   @id
+  name        String   @unique
+  nameSi      String   @map("name_si")
+  nameTa      String   @map("name_ta")
+  province    Province
+  tagline     String
+  description String
+  famousFor   String[] @map("famous_for")
+  /// Two hex colours used for the district's placeholder gradient.
+  colorFrom   String   @map("color_from")
+  colorTo     String   @map("color_to")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  residents User[]
+  followers DistrictFollow[]
+
+  @@index([province])
+  @@map("districts")
+}
+
+enum OAuthProvider {
+  GOOGLE
+  FACEBOOK
+  X
+}
+
+model User {
+  id          String    @id @default(uuid()) @db.Uuid
+  /// Lowercase handle shown as @username. 3–20 chars: a–z, 0–9, _.
+  username    String    @unique
+  displayName String    @map("display_name")
+  bio         String    @default("")
+  /// From the sign-in provider when it shares one. Never shown publicly.
+  email       String?
+  avatarUrl   String?   @map("avatar_url")
+  hometownId  String?   @map("hometown_id")
+  hometown    District? @relation(fields: [hometownId], references: [id])
+  isPrivate   Boolean   @default(false) @map("is_private")
+  /// Null until the user finishes onboarding.
+  onboardedAt DateTime? @map("onboarded_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  accounts        OAuthAccount[]
+  sessions        Session[]
+  districtFollows DistrictFollow[]
+  following       Follow[]         @relation("follower")
+  followers       Follow[]         @relation("followee")
+
+  @@index([hometownId])
+  @@map("users")
+}
+
+/// A provider login linked to a user (a user can link Google and Facebook, for example).
+model OAuthAccount {
+  id                String        @id @default(uuid()) @db.Uuid
+  provider          OAuthProvider
+  providerAccountId String        @map("provider_account_id")
+  userId            String        @map("user_id") @db.Uuid
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt         DateTime      @default(now()) @map("created_at")
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("oauth_accounts")
+}
+
+/// A refresh-token session. Tokens rotate on every refresh; only their SHA-256 hash is stored.
+/// All rotations of one sign-in share a familyId, so reuse of an old token revokes the whole family.
+model Session {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  familyId  String    @map("family_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  userAgent String?   @map("user_agent")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([familyId])
+  @@map("sessions")
+}
+
+/// Following a district puts its posts in your feed and counts towards its followers.
+model DistrictFollow {
+  userId     String   @map("user_id") @db.Uuid
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  districtId String   @map("district_id")
+  district   District @relation(fields: [districtId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@id([userId, districtId])
+  @@index([districtId])
+  @@map("district_follows")
+}
+
+enum FollowStatus {
+  /// Waiting for a private account to approve.
+  PENDING
+  ACCEPTED
+}
+
+/// followerId follows followeeId. Following a private account starts PENDING.
+model Follow {
+  followerId String       @map("follower_id") @db.Uuid
+  follower   User         @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
+  followeeId String       @map("followee_id") @db.Uuid
+  followee   User         @relation("followee", fields: [followeeId], references: [id], onDelete: Cascade)
+  status     FollowStatus
+  createdAt  DateTime     @default(now()) @map("created_at")
+  acceptedAt DateTime?    @map("accepted_at")
+
+  @@id([followerId, followeeId])
+  @@index([followeeId, status])
+  @@map("follows")
+}

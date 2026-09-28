@@ -1,114 +1,64 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# twentyfive-api
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Backend for **twentyfive.lk**, the social network for Sri Lanka's 25 districts.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+NestJS 12 · PostgreSQL 17 · Prisma · S3 (photos) · Node 24 LTS
 
-## Description
-
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
-
-## Project setup
+## Getting started
 
 ```bash
-$ npm install
+nvm use                 # Node 24 (see .nvmrc)
+npm install
+cp .env.example .env
+docker compose up -d    # Postgres on :5433, MinIO (S3) on :9002, console :9003
+npm run db:migrate      # apply migrations to the dev database
+npm run db:seed         # load the 25 districts
+npm run start:dev       # http://localhost:3000/api/v1
 ```
 
-## Compile and run the project
+API docs (non-production): http://localhost:3000/api/docs
 
-```bash
-# development
-$ npm run start
+## Scripts
 
-# watch mode
-$ npm run start:dev
+| Script                          | What it does                                          |
+| ------------------------------- | ----------------------------------------------------- |
+| `npm run start:dev`             | Run with watch mode                                   |
+| `npm test` / `npm run test:cov` | Unit tests (coverage must stay ≥ 80%)                 |
+| `npm run test:e2e`              | End-to-end tests against the full app                 |
+| `npm run check`                 | Everything CI runs: types, lint, format, tests, build |
 
-# production mode
-$ npm run start:prod
-```
+## Conventions
 
-## Run tests
+- **Responses** always use one envelope: `{ success, data, error, meta? }`.
+  Errors carry a stable `code` (e.g. `NOT_FOUND`, `VALIDATION_FAILED`) and a safe `message`.
+- **Routes** live under `/api/v1`.
+- **Modules** are organised by feature under `src/modules/<feature>`:
+  controller (HTTP only) → service (business rules) → repository interface → Prisma implementation.
+  Services throw `AppError` subclasses, never HTTP exceptions.
+- **Config** is read only through `AppConfigService`; every variable is validated at startup.
+- **Tests**: `*.spec.ts` (unit), `*.int-spec.ts` (repository vs. real Postgres), `test/e2e/*.e2e-spec.ts` (HTTP).
+  Integration and e2e tests use the separate `twentyfive_test` database, migrated and seeded automatically.
+- **Database**: Prisma 7 with the `pg` driver adapter; the client is generated into `src/generated/prisma` (git-ignored).
+  Each feature adds its own models in its own migration.
 
-```bash
-# unit tests
-$ npm run test
+## Authentication
 
-# e2e tests
-$ npm run test:e2e
+Sign-in is social only (Google, Facebook, X), using OAuth 2.0 authorization code + PKCE.
 
-# test coverage
-$ npm run test:cov
-```
+1. The web app navigates to `GET /api/v1/auth/<provider>/start`, which redirects to the provider.
+2. The provider redirects to `/api/v1/auth/<provider>/callback`; the API finds or creates the user,
+   sets the session cookies and redirects to `WEB_APP_URL/onboarding` (new users) or `WEB_APP_URL/`.
+3. Sessions: a 15-minute access token (`access_token`, httpOnly) and a 30-day rotating refresh token
+   (`refresh_token`, httpOnly, scoped to `/api/v1/auth`). Reusing an old refresh token revokes the whole session family.
+4. **CSRF**: cookie-authenticated `POST/PUT/PATCH/DELETE` requests must send `X-CSRF-Token` equal to the
+   readable `csrf_token` cookie. The web app should do this on every write, including `/auth/refresh` and `/auth/logout`.
 
-## Deployment
+Every route requires a session unless decorated with `@Public()`. Use `@CurrentUser()` to get `{ id }`.
+Register each provider's redirect URI as `${API_PUBLIC_URL}/api/v1/auth/<google|facebook|x>/callback`.
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+## Git workflow
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Observability
-
-In production applications, observability is essential for understanding how your system behaves, detecting issues early, and maintaining reliable performance.
-
-[NestJS Observe](https://observe.nestjs.com) automatically instruments your NestJS application, giving you deep visibility into your system with minimal setup:
-
-- **Distributed tracing:** Follow requests across services and understand how they flow through your system.
-- **Waterfall analysis:** Visualize request execution and identify slow operations, bottlenecks, and unexpected delays.
-- **Performance analysis:** Analyze application performance in real time and quickly pinpoint areas that need optimization.
-- **Metrics:** Track key application and infrastructure metrics to understand system health and performance trends.
-- **Logging:** Centralize and correlate logs with traces and other telemetry to make debugging easier.
-- **Error tracking:** Detect errors quickly and investigate their root causes with the surrounding context.
-- **SLA monitoring:** Track service-level objectives and identify when your application is approaching or exceeding defined thresholds.
-- **Alarms and alerts:** Set up alerts for critical errors, performance degradation, SLA violations, and other anomalies so your team can react quickly.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Auto-instrument your application with [NestJS Observer](https://observer.nestjs.com). Distributed tracing, metrics, and logging made easy. Error tracking and performance monitoring for your NestJS applications.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+- `main`: releases only. Never commit or merge features directly.
+- `dev`: integration branch.
+- `feature/<name>`: branched from `dev`, merged back into `dev` when done and green.
+- Commits follow [Conventional Commits](https://www.conventionalcommits.org) (enforced by commitlint).
