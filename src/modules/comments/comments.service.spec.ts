@@ -1,7 +1,7 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InMemoryCommentsRepository } from '../../../test/fakes/comments-fakes.js';
 import { FakeObjectStorage, InMemoryMediaRepository } from '../../../test/fakes/media-fakes.js';
-import { InMemoryPostsRepository } from '../../../test/fakes/posts-fakes.js';
+import { FakeLinkPreviews, InMemoryPostsRepository } from '../../../test/fakes/posts-fakes.js';
 import { ValidationError } from '../../common/errors/app-error.js';
 import { DomainEvent } from '../../common/events/domain-events.js';
 import { MediaService } from '../media/media.service.js';
@@ -16,6 +16,7 @@ async function setup() {
     posts,
     new MediaService(new InMemoryMediaRepository(), new FakeObjectStorage()),
     new EventEmitter2(),
+    new FakeLinkPreviews(),
   );
   const repo = new InMemoryCommentsRepository((id) => posts.posts.find((p) => p.id === id)!.author.id);
   const events = new EventEmitter2();
@@ -100,6 +101,7 @@ describe('CommentsService', () => {
       posts,
       new MediaService(new InMemoryMediaRepository(), new FakeObjectStorage()),
       events,
+      new FakeLinkPreviews(),
     );
     const repo = new InMemoryCommentsRepository((id) => posts.posts.find((p) => p.id === id)!.author.id);
     const service = new CommentsService(repo, postsService, events);
