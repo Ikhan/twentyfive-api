@@ -1,5 +1,7 @@
 import { lookup as dnsLookup, type LookupAddress } from 'node:dns';
 import type { LookupFunction } from 'node:net';
+import type { Transform } from 'node:stream';
+import { createBrotliDecompress, createGunzip, createInflate } from 'node:zlib';
 import { Inject, Injectable, Logger, Optional, type OnModuleDestroy } from '@nestjs/common';
 import { Agent, request, type Dispatcher } from 'undici';
 import { PAGE_DISPATCHER, type FetchedPage, type PageFetcher } from './page-fetcher.js';
@@ -8,11 +10,13 @@ import { isIpLiteral, isPublicAddress } from './public-address.js';
 const MAX_REDIRECTS = 3;
 /** The whole fetch, redirects included. */
 const TOTAL_TIMEOUT_MS = 5000;
-/** A card only needs <head>; stop reading after this much. */
+/** A card only needs <head>; stop reading after this much (unpacked, for compressed pages). */
 const MAX_BYTES = 512 * 1024;
 const HEADERS = {
   'user-agent': 'Mozilla/5.0 (compatible; twentyfivebot/1.0; +https://twentyfive.lk)',
   accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.1',
+  // Many sites compress anyway; say what we can unpack.
+  'accept-encoding': 'gzip, deflate, br',
   'accept-language': 'en',
 };
 
@@ -94,7 +98,12 @@ export class SafePageFetcher implements PageFetcher, OnModuleDestroy {
           await res.body.dump();
           return null;
         }
-        return { url: url.href, html: await readCapped(res.body, MAX_BYTES) };
+        const decoder = decoderFor(header(res.headers['content-encoding']) ?? '');
+        if (decoder === undefined) {
+          await res.body.dump();
+          return null;
+        }
+        return { url: url.href, html: await readCapped(res.body, decoder, MAX_BYTES) };
       }
       return null;
     } catch (error) {
@@ -104,18 +113,46 @@ export class SafePageFetcher implements PageFetcher, OnModuleDestroy {
   }
 }
 
-/** The body as text, stopping (and closing the connection) after `max` bytes. */
-async function readCapped(body: Dispatcher.ResponseData['body'], max: number): Promise<string> {
+/** An unpacker for the page's Content-Encoding: null when it isn't compressed, undefined if we can't read it. */
+function decoderFor(encoding: string): Transform | null | undefined {
+  switch (encoding.trim().toLowerCase()) {
+    case '':
+    case 'identity':
+      return null;
+    case 'gzip':
+    case 'x-gzip':
+      return createGunzip();
+    case 'deflate':
+      return createInflate();
+    case 'br':
+      return createBrotliDecompress();
+    default:
+      return undefined;
+  }
+}
+
+/**
+ * The body as text (unpacked if compressed), stopping after `max` bytes and closing the connection. The limit
+ * applies to the unpacked text, so a small compressed page can't expand into a huge one (a "zip bomb").
+ */
+async function readCapped(
+  body: Dispatcher.ResponseData['body'],
+  decoder: Transform | null,
+  max: number,
+): Promise<string> {
+  const stream = decoder ? body.pipe(decoder) : body;
   const chunks: Buffer[] = [];
   let size = 0;
-  for await (const chunk of body) {
-    const buffer = Buffer.from(chunk as Uint8Array);
-    chunks.push(buffer);
-    size += buffer.length;
-    if (size >= max) {
-      body.destroy();
-      break;
+  try {
+    for await (const chunk of stream) {
+      const buffer = Buffer.from(chunk as Uint8Array);
+      chunks.push(buffer);
+      size += buffer.length;
+      if (size >= max) break;
     }
+  } finally {
+    decoder?.destroy();
+    body.destroy();
   }
   return Buffer.concat(chunks).subarray(0, max).toString('utf8');
 }
