@@ -17,7 +17,7 @@ export class InMemoryPostsRepository implements PostsRepository {
   readonly approved = new Set<string>(); // `${follower}>${author}`
   private clock = Date.parse('2026-09-01T00:00:00Z');
 
-  async create({ photos, quotedPostId, link = null, ...post }: NewPost): Promise<PostRecord> {
+  async create({ photos, video = null, quotedPostId, link = null, ...post }: NewPost): Promise<PostRecord> {
     const author = AUTHORS[post.authorId]!;
     const view: PostRecord = {
       id: randomUUID(),
@@ -33,6 +33,13 @@ export class InMemoryPostsRepository implements PostsRepository {
       },
       district: post.districtId ? { id: post.districtId, name: post.districtId, colors: ['#000', '#fff'] } : null,
       photos: photos.map((p) => ({ id: p.mediaId, url: p.url })),
+      video: video && {
+        id: video.mediaId,
+        url: video.url,
+        durationSeconds: video.durationSeconds,
+        width: video.width,
+        height: video.height,
+      },
       counts: { comments: 0, likes: 0, reposts: 0, quotes: 0 },
       viewer: { liked: false, reposted: false },
       quoted: null,

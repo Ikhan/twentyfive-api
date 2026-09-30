@@ -236,4 +236,37 @@ describe('PrismaPostsRepository (integration)', () => {
     expect(found.map((x) => x.username).sort()).toEqual(['arun', 'kasun']); // sachini hasn't finished signing up
     expect(found.find((x) => x.username === 'kasun')).toEqual({ id: u.kasun, username: 'kasun' });
   });
+
+  it('creates a post with a video, and shows it in lists', async () => {
+    const mediaId = randomUUID();
+    await prisma.media.create({
+      data: {
+        id: mediaId,
+        ownerId: u.kasun!,
+        purpose: 'POST_VIDEO',
+        status: 'READY',
+        key: `v/${mediaId}`,
+        contentType: 'video/mp4',
+      },
+    });
+    const created = await posts.create({
+      authorId: u.kasun!,
+      body: '',
+      districtId: null,
+      audience: 'EVERYONE',
+      photos: [],
+      video: { mediaId, url: 'https://cdn/v.mp4', durationSeconds: 42, width: 1080, height: 1920 },
+    });
+    expect(created.video).toEqual({
+      id: mediaId,
+      url: 'https://cdn/v.mp4',
+      durationSeconds: 42,
+      width: 1080,
+      height: 1920,
+    });
+    const [listed] = await posts.list(u.arun!, { kind: 'everything' }, { take: 1 });
+    expect(listed!.video).toMatchObject({ id: mediaId, durationSeconds: 42 });
+    await posts.delete(created.id);
+    expect(await prisma.postVideo.count()).toBe(0);
+  });
 });

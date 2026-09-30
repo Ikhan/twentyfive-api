@@ -38,6 +38,14 @@ export class CreatePostDto {
   @ArrayMaxSize(MAX_POST_PHOTOS)
   @IsUUID('all', { each: true })
   mediaIds?: string[];
+
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'A completed POST_VIDEO upload (up to 10 minutes), instead of photos',
+  })
+  @IsOptional()
+  @IsUUID()
+  videoId?: string;
 }
 
 export class FeedQueryDto extends PageQueryDto {

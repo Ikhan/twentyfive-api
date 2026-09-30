@@ -6,6 +6,7 @@ import { MediaService } from './media.service.js';
 import { PrismaMediaRepository } from './prisma-media.repository.js';
 import { OBJECT_STORAGE } from './storage/object-storage.js';
 import { createObjectStorage } from './storage/storage.factory.js';
+import { MediaInfoVideoProbe, VIDEO_PROBE } from './video-probe.js';
 
 @Module({
   controllers: [MediaController],
@@ -13,6 +14,7 @@ import { createObjectStorage } from './storage/storage.factory.js';
     MediaService,
     { provide: MEDIA_REPOSITORY, useClass: PrismaMediaRepository },
     { provide: OBJECT_STORAGE, inject: [AppConfigService], useFactory: createObjectStorage },
+    { provide: VIDEO_PROBE, useClass: MediaInfoVideoProbe },
   ],
   exports: [MediaService, OBJECT_STORAGE],
 })

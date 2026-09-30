@@ -13,7 +13,7 @@ export interface ObjectInfo {
 }
 
 /**
- * Where photos live. S3 in production, MinIO locally, in-memory in tests.
+ * Where photos and videos live. S3 in production, MinIO locally, in-memory in tests.
  * Browsers upload directly using a presigned POST, so the API never streams file bytes.
  */
 export interface ObjectStorage {
@@ -29,6 +29,8 @@ export interface ObjectStorage {
   stat(key: string): Promise<ObjectInfo | null>;
   /** First `bytes` bytes of the object, to check what it really is. */
   readPrefix(key: string, bytes: number): Promise<Uint8Array>;
+  /** `length` bytes from `offset` (or fewer at the end), e.g. to read a video's length without downloading it. */
+  readRange(key: string, offset: number, length: number): Promise<Uint8Array>;
   delete(key: string): Promise<void>;
   publicUrl(key: string): string;
   ping(): Promise<boolean>;
@@ -56,6 +58,9 @@ export class UnconfiguredStorage implements ObjectStorage {
     return Promise.reject(new StorageUnavailableError());
   }
   readPrefix(): Promise<Uint8Array> {
+    return Promise.reject(new StorageUnavailableError());
+  }
+  readRange(): Promise<Uint8Array> {
     return Promise.reject(new StorageUnavailableError());
   }
   delete(): Promise<void> {

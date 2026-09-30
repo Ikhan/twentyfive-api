@@ -1,3 +1,4 @@
+import type { VideoDetails, VideoProbe } from '../../src/modules/media/video-probe.js';
 import type { MediaRepository } from '../../src/modules/media/media.repository.js';
 import type { MediaPurpose, MediaRecord } from '../../src/modules/media/media.types.js';
 import type { ObjectInfo, ObjectStorage, PresignedUpload } from '../../src/modules/media/storage/object-storage.js';
@@ -33,6 +34,10 @@ export class FakeObjectStorage implements ObjectStorage {
     return (this.objects.get(key) ?? new Uint8Array()).slice(0, bytes);
   }
 
+  async readRange(key: string, offset: number, length: number): Promise<Uint8Array> {
+    return (this.objects.get(key) ?? new Uint8Array()).slice(offset, offset + length);
+  }
+
   async delete(key: string): Promise<void> {
     this.objects.delete(key);
     this.deleted.push(key);
@@ -50,8 +55,8 @@ export class FakeObjectStorage implements ObjectStorage {
 export class InMemoryMediaRepository implements MediaRepository {
   readonly rows = new Map<string, MediaRecord>();
 
-  async create(media: Omit<MediaRecord, 'status' | 'sizeBytes'>): Promise<MediaRecord> {
-    const record: MediaRecord = { ...media, status: 'PENDING', sizeBytes: null };
+  async create(media: Omit<MediaRecord, 'status' | 'sizeBytes' | 'video'>): Promise<MediaRecord> {
+    const record: MediaRecord = { ...media, status: 'PENDING', sizeBytes: null, video: null };
     this.rows.set(record.id, record);
     return record;
   }
@@ -60,8 +65,8 @@ export class InMemoryMediaRepository implements MediaRepository {
     return this.rows.get(id) ?? null;
   }
 
-  async markReady(id: string, sizeBytes: number): Promise<MediaRecord> {
-    const next = { ...this.rows.get(id)!, status: 'READY' as const, sizeBytes };
+  async markReady(id: string, sizeBytes: number, video: VideoDetails | null = null): Promise<MediaRecord> {
+    const next = { ...this.rows.get(id)!, status: 'READY' as const, sizeBytes, video };
     this.rows.set(id, next);
     return next;
   }
@@ -70,5 +75,14 @@ export class InMemoryMediaRepository implements MediaRepository {
     return ids
       .map((id) => this.rows.get(id))
       .filter((m): m is MediaRecord => !!m && m.ownerId === ownerId && m.purpose === purpose && m.status === 'READY');
+  }
+}
+
+/** Video details for service tests: fixed per object key, or none (not a readable video). */
+export class FakeVideoProbe implements VideoProbe {
+  readonly details = new Map<number, VideoDetails>(); // by file size, which tests control
+
+  async probe(sizeBytes: number): Promise<VideoDetails | null> {
+    return this.details.get(sizeBytes) ?? null;
   }
 }
