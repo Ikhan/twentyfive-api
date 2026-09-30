@@ -223,9 +223,24 @@ describe('UsersService', () => {
       expect(await names('@Tha')).toEqual(['tharushi']);
       expect(await names(' fern ')).toEqual(['tharushi']); // "fernandonew" hasn't finished signing up
       expect(await names('kasun')).toEqual([]);
-      expect(await service.search('u-kasun', '', 5)).toEqual([
-        { id: 'u-tharushi', username: 'tharushi', displayName: 'Tharushi Fernando', avatarUrl: null, isPrivate: false },
-      ]);
+    });
+
+    it('sticks to people you follow or who follow you until 3 letters are typed, then searches everyone', async () => {
+      const { service, repo } = setup();
+      const person = (id: string, username: string) =>
+        repo.users.set(id, profile({ id, username, displayName: username, onboarded: true }));
+      person('u-kasun', 'kasun');
+      person('u-shabana', 'shabana');
+      person('u-shanika', 'shanika');
+      person('u-sunil', 'sunil');
+      repo.follows.add('u-kasun>u-shabana'); // you follow her
+      repo.follows.add('u-sunil>u-kasun'); // he follows you
+      const names = async (q: string) => (await service.search('u-kasun', q, 10)).map((u) => u.username);
+      expect(await names('')).toEqual(['shabana', 'sunil']);
+      expect(await names('@s')).toEqual(['shabana', 'sunil']);
+      expect(await names('sh')).toEqual(['shabana']);
+      expect(await names('sha')).toEqual(['shabana', 'shanika']); // specific enough: everyone named that
+      expect(await names('shab')).toEqual(['shabana']);
     });
   });
 });

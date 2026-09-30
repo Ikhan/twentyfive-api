@@ -34,10 +34,18 @@ export class InMemoryUsersRepository implements UsersRepository {
     return [...this.users.values()].find((u) => u.username === username) ?? null;
   }
 
-  /** Matching only (ordering by follows and followers is SQL, covered by the integration tests). */
-  async search(viewerId: string, prefix: string, take: number): Promise<UserSummary[]> {
+  /** `userId>userId` accepted follows, for connection-only searches. */
+  readonly follows = new Set<string>();
+
+  /** Matching and connections only (ordering is SQL, covered by the integration tests). */
+  async search(
+    viewerId: string,
+    prefix: string,
+    { take, connectionsOnly }: { take: number; connectionsOnly: boolean },
+  ): Promise<UserSummary[]> {
+    const connected = (id: string) => this.follows.has(`${viewerId}>${id}`) || this.follows.has(`${id}>${viewerId}`);
     return [...this.users.values()]
-      .filter((u) => u.id !== viewerId && u.onboarded)
+      .filter((u) => u.id !== viewerId && u.onboarded && (!connectionsOnly || connected(u.id)))
       .filter(
         (u) =>
           u.username.startsWith(prefix) ||

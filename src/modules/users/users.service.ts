@@ -9,6 +9,9 @@ import { USERS_REPOSITORY, type UsersRepository } from './users.repository.js';
 import type { MediaPurpose } from '../media/media.types.js';
 import type { MyProfile, ProfileChanges, PublicProfile, UserSummary } from './users.types.js';
 
+/** From this many letters after @, mention suggestions include everyone, not just your connections. */
+export const MENTION_SEARCH_EVERYONE_FROM = 3;
+
 export type UsernameAvailability = { available: true } | { available: false; reason: 'invalid' | 'reserved' | 'taken' };
 
 /** Profile images: which upload purpose each accepts and where its URL is stored. */
@@ -36,10 +39,14 @@ export class UsersService {
     return user;
   }
 
-  /** @mention suggestions for what's typed after "@" (with or without the @; empty: people you follow first). */
+  /**
+   * @mention suggestions for what's typed after "@" (with or without the @). Until it's specific
+   * (MENTION_SEARCH_EVERYONE_FROM letters), only people you follow or who follow you; then everyone.
+   */
   search(viewerId: string, query: string, limit: number): Promise<UserSummary[]> {
     const prefix = query.trim().replace(/^@/, '').toLowerCase();
-    return this.users.search(viewerId, prefix, limit);
+    const connectionsOnly = prefix.length < MENTION_SEARCH_EVERYONE_FROM;
+    return this.users.search(viewerId, prefix, { take: limit, connectionsOnly });
   }
 
   /** Public view of any user. Private accounts still show their profile header; their posts are filtered elsewhere. */
