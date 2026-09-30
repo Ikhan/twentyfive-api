@@ -128,6 +128,13 @@ describe('Users (e2e)', () => {
     const tharushi = await prisma.user.findUniqueOrThrow({ where: { username: 'tharushi' } });
     await prisma.follow.create({ data: { followerId: tharushi.id, followeeId: kasun.id, status: 'ACCEPTED' } });
     expect((await short()).body.data.map((u: { username: string }) => u.username)).toEqual(['tharushi']);
+    // The search box finds people you don't know from the first letter.
+    const everyone = await http()
+      .get('/api/v1/users/search?q=t&mode=everyone')
+      .set('Authorization', kasun.auth)
+      .expect(200);
+    expect(everyone.body.data.map((u: { username: string }) => u.username)).toContain('tharushi');
+    await http().get('/api/v1/users/search?q=t&mode=nope').set('Authorization', kasun.auth).expect(400);
     await http().get('/api/v1/users/search?q=a&limit=21').set('Authorization', kasun.auth).expect(400);
     await http().get('/api/v1/users/search?q=a').expect(401);
   });

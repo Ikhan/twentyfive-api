@@ -248,5 +248,19 @@ describe('UsersService', () => {
       expect(await names('sha')).toEqual(['shabana', 'shanika']); // specific enough: everyone named that
       expect(await names('shab')).toEqual(['shabana']);
     });
+
+    it('searches everyone from the first letter in the search box', async () => {
+      const { service, repo } = setup();
+      for (const [id, username] of [
+        ['u-kasun', 'kasun'],
+        ['u-shabana', 'shabana'],
+        ['u-sunil', 'sunil'],
+      ] as const)
+        repo.users.set(id, profile({ id, username, displayName: username, onboarded: true }));
+      repo.follows.add('u-sunil>u-kasun');
+      const names = async (q: string) => (await service.search('u-kasun', q, 10, 'everyone')).map((u) => u.username);
+      expect(await names('s')).toEqual(expect.arrayContaining(['shabana', 'sunil']));
+      expect(await names('sh')).toEqual(['shabana']);
+    });
   });
 });

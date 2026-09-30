@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
+  IsIn,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -128,4 +129,14 @@ export class UserSearchQueryDto {
   @Min(1)
   @Max(20)
   limit: number = DEFAULT_USER_SEARCH;
+
+  @ApiPropertyOptional({
+    enum: ['mention', 'everyone'],
+    default: 'mention',
+    description:
+      'mention: only your connections until 3 letters are typed; everyone: the search box (anyone, any length)',
+  })
+  @IsOptional()
+  @IsIn(['mention', 'everyone'])
+  mode: 'mention' | 'everyone' = 'mention';
 }
