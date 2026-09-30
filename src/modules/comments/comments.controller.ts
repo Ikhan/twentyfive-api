@@ -30,7 +30,7 @@ export class CommentsController {
     @Param('id', new ParseUUIDPipe()) postId: string,
     @Body() dto: CreateCommentDto,
   ): Promise<CommentView> {
-    return this.comments.add(user.id, postId, dto.body, dto.parentId);
+    return this.comments.add(user.id, postId, dto.body, dto.parentId, { mediaIds: dto.mediaIds, videoId: dto.videoId });
   }
 
   @Get('comments/:id/replies')

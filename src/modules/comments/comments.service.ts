@@ -5,12 +5,14 @@ import { ValidationError } from '../../common/errors/app-error.js';
 import { DomainEvent, type CommentCreatedEvent } from '../../common/events/domain-events.js';
 import { decodeCursor, toPage } from '../../common/pagination/cursor.js';
 import { mentionedUsernames } from '../../common/text/mentions.js';
+import { MediaService } from '../media/media.service.js';
 import { PostsService } from '../posts/posts.service.js';
 import { CannotDeleteCommentError, CommentNotFoundError } from './comments.errors.js';
 import { COMMENTS_REPOSITORY, type CommentsRepository } from './comments.repository.js';
 import type { CommentCursor, CommentOwnership, CommentRecord, CommentView } from './comments.types.js';
 
 export const MAX_COMMENT_LENGTH = 500;
+export const MAX_COMMENT_PHOTOS = 4;
 const EXCERPT_LENGTH = 120;
 
 const isCursor = (v: unknown): v is CommentCursor =>
@@ -26,6 +28,7 @@ export class CommentsService {
     @Inject(COMMENTS_REPOSITORY) private readonly comments: CommentsRepository,
     private readonly posts: PostsService,
     private readonly events: EventEmitter2,
+    private readonly media: MediaService,
   ) {}
 
   /** Top-level comments on a post you can see (PostNotFoundError otherwise), each with its reply count. */
@@ -70,18 +73,35 @@ export class CommentsService {
    * Comments on a post, or with `replyToId` replies to a comment on it. Replies stay one level deep:
    * answering a reply joins its top-level comment's thread, but its author is the one told.
    */
-  async add(authorId: string, postId: string, rawBody: string, replyToId?: string): Promise<CommentView> {
-    const body = rawBody.trim();
-    if (!body) throw new ValidationError('Write a comment first.', { field: 'body' });
+  async add(
+    authorId: string,
+    postId: string,
+    rawBody: string | undefined,
+    replyToId?: string,
+    /** Like posts: up to 4 photo uploads, or one video upload. */
+    media: { mediaIds?: string[]; videoId?: string } = {},
+  ): Promise<CommentView> {
+    const body = rawBody?.trim() ?? '';
+    const mediaIds = [...new Set(media.mediaIds ?? [])];
+    if (!body && mediaIds.length === 0 && !media.videoId)
+      throw new ValidationError('Write a comment or add a photo or video.', { field: 'body' });
+    if (mediaIds.length > MAX_COMMENT_PHOTOS)
+      throw new ValidationError(`You can add up to ${MAX_COMMENT_PHOTOS} photos.`, { field: 'mediaIds' });
+    if (mediaIds.length > 0 && media.videoId)
+      throw new ValidationError('A comment can have photos or a video, not both.', { field: 'videoId' });
     if (body.length > MAX_COMMENT_LENGTH)
       throw new ValidationError(`Comments can be up to ${MAX_COMMENT_LENGTH} characters.`, { field: 'body' });
     const post = await this.posts.get(postId, authorId);
     const repliedTo = replyToId ? await this.onPost(postId, replyToId) : null;
+    const photos = mediaIds.length ? await this.media.claim(authorId, mediaIds, 'POST_PHOTO') : [];
+    const [video] = media.videoId ? await this.media.claim(authorId, [media.videoId], 'POST_VIDEO') : [];
     const comment = await this.comments.create({
       postId,
       authorId,
       body,
       parentId: repliedTo ? (repliedTo.parentId ?? repliedTo.id) : null,
+      photos: photos.map((p) => ({ mediaId: p.id, url: p.url })),
+      video: video?.video ? { mediaId: video.id, url: video.url, ...video.video } : null,
     });
     this.events.emit(DomainEvent.CommentCreated, {
       commentId: comment.id,

@@ -1,5 +1,6 @@
 import { resetDatabase } from '../../../test/helpers/test-db.js';
 import { testPrismaService } from '../../../test/helpers/test-prisma-service.js';
+import { PrismaMediaRepository } from '../media/prisma-media.repository.js';
 import { PrismaPostsRepository } from '../posts/prisma-posts.repository.js';
 import { PrismaCommentsRepository } from './prisma-comments.repository.js';
 
@@ -82,5 +83,41 @@ describe('PrismaCommentsRepository (integration)', () => {
     await comments.create({ postId, authorId: arun, body: 'Nice' });
     await prisma.post.delete({ where: { id: postId } });
     expect(await prisma.comment.count()).toBe(0);
+  });
+
+  it('keeps a comment’s photos (in order) or video, and those uploads can’t be used again', async () => {
+    const upload = async (purpose: 'POST_PHOTO' | 'POST_VIDEO') =>
+      (
+        await prisma.media.create({
+          data: { ownerId: arun, purpose, status: 'READY', key: `k/${Math.random()}`, contentType: 'image/jpeg' },
+        })
+      ).id;
+    const [p1, p2] = [await upload('POST_PHOTO'), await upload('POST_PHOTO')];
+    const withPhotos = await comments.create({
+      postId,
+      authorId: arun,
+      body: '',
+      photos: [
+        { mediaId: p2, url: 'https://cdn/2.jpg' },
+        { mediaId: p1, url: 'https://cdn/1.jpg' },
+      ],
+    });
+    expect(withPhotos.photos.map((p) => p.url)).toEqual(['https://cdn/2.jpg', 'https://cdn/1.jpg']);
+    const v = await upload('POST_VIDEO');
+    const withVideo = await comments.create({
+      postId,
+      authorId: arun,
+      body: 'clip',
+      video: { mediaId: v, url: 'https://cdn/v.mp4', durationSeconds: 12, width: 640, height: 360 },
+    });
+    expect(withVideo.video).toEqual({ id: v, url: 'https://cdn/v.mp4', durationSeconds: 12, width: 640, height: 360 });
+    const listed = await comments.list(postId, kasun, { take: 10 });
+    expect(listed.map((c) => [c.photos.length, c.video?.id ?? null])).toEqual([
+      [2, null],
+      [0, v],
+    ]);
+    const media = new PrismaMediaRepository(prisma);
+    await expect(media.findReady(arun, [p1, v], 'POST_PHOTO')).resolves.toEqual([]);
+    await expect(media.findReady(arun, [v], 'POST_VIDEO')).resolves.toEqual([]);
   });
 });

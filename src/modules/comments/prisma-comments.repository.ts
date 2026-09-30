@@ -14,19 +14,39 @@ const select = (viewerId: string) =>
     body: true,
     createdAt: true,
     author: { select: { id: true, username: true, displayName: true, avatarUrl: true, isPrivate: true } },
+    photos: { select: { id: true, url: true }, orderBy: { position: 'asc' } },
+    video: { select: { mediaId: true, url: true, durationSeconds: true, width: true, height: true } },
     _count: { select: { replies: { where: { author: notBlockedWith(viewerId) } } } },
   }) as const satisfies Prisma.CommentSelect;
 
 type Row = Prisma.CommentGetPayload<{ select: ReturnType<typeof select> }>;
 
-const toRecord = ({ _count, ...row }: Row): CommentRecord => ({ ...row, replyCount: _count.replies });
+const toRecord = ({ _count, video, ...row }: Row): CommentRecord => ({
+  ...row,
+  replyCount: _count.replies,
+  video: video && {
+    id: video.mediaId,
+    url: video.url,
+    durationSeconds: video.durationSeconds,
+    width: video.width,
+    height: video.height,
+  },
+});
 
 @Injectable()
 export class PrismaCommentsRepository implements CommentsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(input: NewComment): Promise<CommentRecord> {
-    return toRecord(await this.prisma.comment.create({ data: input, select: select(input.authorId) }));
+  async create({ photos = [], video, ...input }: NewComment): Promise<CommentRecord> {
+    const row = await this.prisma.comment.create({
+      data: {
+        ...input,
+        photos: { create: photos.map((p, position) => ({ ...p, position })) },
+        ...(video && { video: { create: video } }),
+      },
+      select: select(input.authorId),
+    });
+    return toRecord(row);
   }
 
   async list(

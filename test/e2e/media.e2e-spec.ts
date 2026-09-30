@@ -173,6 +173,42 @@ describe('Media and avatars (e2e)', () => {
       .send({ purpose: 'POST_VIDEO', contentType: 'video/mp4', sizeBytes: 600 * 1024 * 1024 })
       .expect(400);
   });
+  it('comments and replies with a video or photos', async () => {
+    const postId = (
+      await http().post('/api/v1/posts').set('Authorization', kasun.auth).send({ body: 'Perahera tonight' }).expect(201)
+    ).body.data.id;
+    const bytes = new Uint8Array(readFileSync('test/fixtures/videos/short.webm'));
+    const video = await reserve(arun, { purpose: 'POST_VIDEO', contentType: 'video/webm', sizeBytes: bytes.length });
+    storage.put(video.upload.fields.key, bytes);
+    await http().post(`/api/v1/media/${video.mediaId}/complete`).set('Authorization', arun.auth).expect(200);
+    const comment = await http()
+      .post(`/api/v1/posts/${postId}/comments`)
+      .set('Authorization', arun.auth)
+      .send({ videoId: video.mediaId })
+      .expect(201);
+    expect(comment.body.data).toMatchObject({
+      body: '',
+      photos: [],
+      video: { durationSeconds: 2, width: 32, height: 18 },
+    });
+
+    const photo = await reserve(kasun, { purpose: 'POST_PHOTO', contentType: 'image/jpeg', sizeBytes: 2048 });
+    storage.put(photo.upload.fields.key, JPEG, 2048);
+    await http().post(`/api/v1/media/${photo.mediaId}/complete`).set('Authorization', kasun.auth).expect(200);
+    const reply = await http()
+      .post(`/api/v1/posts/${postId}/comments`)
+      .set('Authorization', kasun.auth)
+      .send({ body: 'Nice', parentId: comment.body.data.id, mediaIds: [photo.mediaId] })
+      .expect(201);
+    expect(reply.body.data.photos).toHaveLength(1);
+    // Each upload goes on one post or comment only.
+    await http()
+      .post('/api/v1/posts')
+      .set('Authorization', kasun.auth)
+      .send({ mediaIds: [photo.mediaId] })
+      .expect(400);
+    await http().post(`/api/v1/posts/${postId}/comments`).set('Authorization', arun.auth).send({}).expect(400);
+  });
 });
 
 describe('Media without storage configured (e2e)', () => {

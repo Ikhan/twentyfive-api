@@ -16,7 +16,14 @@ export class InMemoryCommentsRepository implements CommentsRepository {
   /** Post authors, so ownership checks work without a posts store. */
   constructor(private readonly postAuthorOf: (postId: string) => string = () => 'u-kasun') {}
 
-  async create({ postId, authorId, body, parentId = null }: NewComment): Promise<CommentRecord> {
+  async create({
+    postId,
+    authorId,
+    body,
+    parentId = null,
+    photos = [],
+    video = null,
+  }: NewComment): Promise<CommentRecord> {
     const stored: Stored = {
       id: randomUUID(),
       postId,
@@ -25,6 +32,14 @@ export class InMemoryCommentsRepository implements CommentsRepository {
       createdAt: new Date((this.clock += 60_000)),
       author: { id: authorId, username: authorId, displayName: authorId, avatarUrl: null, isPrivate: false },
       postAuthorId: this.postAuthorOf(postId),
+      photos: photos.map((p) => ({ id: p.mediaId, url: p.url })),
+      video: video && {
+        id: video.mediaId,
+        url: video.url,
+        durationSeconds: video.durationSeconds,
+        width: video.width,
+        height: video.height,
+      },
     };
     this.comments.push(stored);
     return this.record(stored);

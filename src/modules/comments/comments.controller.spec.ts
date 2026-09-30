@@ -12,8 +12,8 @@ describe('CommentsController', () => {
     await c.replies(me, 'c1', { limit: 5 });
     await expect(c.remove(me, 'c1')).resolves.toBeNull();
     expect(service.list).toHaveBeenCalledWith('u1', 'p1', { limit: 10 });
-    expect(service.add).toHaveBeenCalledWith('u1', 'p1', 'hi', undefined);
-    expect(service.add).toHaveBeenLastCalledWith('u1', 'p1', 'yes', 'c1');
+    expect(service.add).toHaveBeenCalledWith('u1', 'p1', 'hi', undefined, { mediaIds: undefined, videoId: undefined });
+    expect(service.add).toHaveBeenLastCalledWith('u1', 'p1', 'yes', 'c1', { mediaIds: undefined, videoId: undefined });
     expect(service.replies).toHaveBeenCalledWith('u1', 'c1', { limit: 5 });
     expect(service.remove).toHaveBeenCalledWith('u1', 'c1');
   });

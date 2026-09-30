@@ -175,23 +175,25 @@ enum MediaStatus {
 
 /// A photo uploaded straight to object storage (S3) by the browser.
 model Media {
-  id              String       @id @default(uuid()) @db.Uuid
-  ownerId         String       @map("owner_id") @db.Uuid
-  owner           User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  id              String        @id @default(uuid()) @db.Uuid
+  ownerId         String        @map("owner_id") @db.Uuid
+  owner           User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   purpose         MediaPurpose
-  status          MediaStatus  @default(PENDING)
+  status          MediaStatus   @default(PENDING)
   /// Object key in the bucket, e.g. post_photo/<owner>/<id>.jpg
-  key             String       @unique
-  contentType     String       @map("content_type")
-  sizeBytes       Int?         @map("size_bytes")
+  key             String        @unique
+  contentType     String        @map("content_type")
+  sizeBytes       Int?          @map("size_bytes")
   /// Videos only, read from the file when it's verified.
-  durationSeconds Float?       @map("duration_seconds")
+  durationSeconds Float?        @map("duration_seconds")
   width           Int?
   height          Int?
-  createdAt       DateTime     @default(now()) @map("created_at")
-  readyAt         DateTime?    @map("ready_at")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  readyAt         DateTime?     @map("ready_at")
   postPhoto       PostPhoto?
   postVideo       PostVideo?
+  commentPhoto    CommentPhoto?
+  commentVideo    CommentVideo?
 
   @@index([ownerId, status])
   @@map("media")
@@ -281,11 +283,42 @@ model Comment {
   parentId      String?        @map("parent_id") @db.Uuid
   parent        Comment?       @relation("Replies", fields: [parentId], references: [id], onDelete: Cascade)
   replies       Comment[]      @relation("Replies")
+  /// Like posts: up to 4 photos or one video.
+  photos        CommentPhoto[]
+  video         CommentVideo?
   notifications Notification[]
 
   @@index([postId, createdAt, id])
   @@index([parentId, createdAt, id])
   @@map("comments")
+}
+
+/// A comment's photo. Each upload can be used once (by a post or a comment).
+model CommentPhoto {
+  id        String  @id @default(uuid()) @db.Uuid
+  commentId String  @map("comment_id") @db.Uuid
+  comment   Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  mediaId   String  @unique @map("media_id") @db.Uuid
+  media     Media   @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  url       String
+  position  Int
+
+  @@index([commentId, position])
+  @@map("comment_photos")
+}
+
+/// A comment's video (one per comment, never with photos).
+model CommentVideo {
+  commentId       String  @id @map("comment_id") @db.Uuid
+  comment         Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  mediaId         String  @unique @map("media_id") @db.Uuid
+  media           Media   @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  url             String
+  durationSeconds Float   @map("duration_seconds")
+  width           Int
+  height          Int
+
+  @@map("comment_videos")
 }
 
 /// One like per user per post.
