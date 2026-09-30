@@ -1,6 +1,6 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InMemoryCommentsRepository } from '../../../test/fakes/comments-fakes.js';
-import { FakeObjectStorage, FakeVideoProbe, InMemoryMediaRepository } from '../../../test/fakes/media-fakes.js';
+import { FakeObjectStorage, FakeVideoProbe, InMemoryMediaRepository, JPEG } from '../../../test/fakes/media-fakes.js';
 import { FakeLinkPreviews, InMemoryPostsRepository } from '../../../test/fakes/posts-fakes.js';
 import { ValidationError } from '../../common/errors/app-error.js';
 import { DomainEvent } from '../../common/events/domain-events.js';
@@ -12,20 +12,18 @@ import { CommentsService, MAX_COMMENT_LENGTH } from './comments.service.js';
 
 async function setup() {
   const posts = new InMemoryPostsRepository();
-  const postsService = new PostsService(
-    posts,
-    new MediaService(new InMemoryMediaRepository(), new FakeObjectStorage(), new FakeVideoProbe()),
-    new EventEmitter2(),
-    new FakeLinkPreviews(),
-  );
+  const storage = new FakeObjectStorage();
+  const videos = new FakeVideoProbe();
+  const media = new MediaService(new InMemoryMediaRepository(), storage, videos);
+  const postsService = new PostsService(posts, media, new EventEmitter2(), new FakeLinkPreviews());
   const repo = new InMemoryCommentsRepository((id) => posts.posts.find((p) => p.id === id)!.author.id);
   const events = new EventEmitter2();
   const emitted: unknown[] = [];
   events.on(DomainEvent.CommentCreated, (e) => emitted.push(e));
-  const service = new CommentsService(repo, postsService, events);
+  const service = new CommentsService(repo, postsService, events, media);
   const publicPost = await postsService.create('u-kasun', { body: 'Perahera tonight', districtId: 'kandy' });
   const privatePost = await postsService.create('u-sachini', { body: 'Secret', districtId: 'galle' });
-  return { service, repo, emitted, publicPost, privatePost };
+  return { service, repo, emitted, publicPost, privatePost, media, storage, videos };
 }
 
 describe('CommentsService', () => {
@@ -97,14 +95,10 @@ describe('CommentsService', () => {
     const events = new EventEmitter2();
     const mentioned: unknown[] = [];
     events.on(DomainEvent.UsersMentioned, (e) => mentioned.push(e));
-    const postsService = new PostsService(
-      posts,
-      new MediaService(new InMemoryMediaRepository(), new FakeObjectStorage(), new FakeVideoProbe()),
-      events,
-      new FakeLinkPreviews(),
-    );
+    const media = new MediaService(new InMemoryMediaRepository(), new FakeObjectStorage(), new FakeVideoProbe());
+    const postsService = new PostsService(posts, media, events, new FakeLinkPreviews());
     const repo = new InMemoryCommentsRepository((id) => posts.posts.find((p) => p.id === id)!.author.id);
-    const service = new CommentsService(repo, postsService, events);
+    const service = new CommentsService(repo, postsService, events, media);
     const post = await postsService.create('u-kasun', { body: 'Perahera tonight' });
     const comment = await service.add('u-arun', post.id, '@kasun @sachini see you there, @nobody');
     expect(comment.mentions).toEqual(['kasun', 'sachini']);
@@ -161,6 +155,77 @@ describe('CommentsService', () => {
       await service.add('u-kasun', publicPost.id, 'Hi back', top.id);
       await service.remove('u-kasun', top.id); // the post's author
       expect(repo.comments).toEqual([]);
+    });
+  });
+
+  describe('photos and videos', () => {
+    type Ctx = Awaited<ReturnType<typeof setup>>;
+    async function readyPhoto(ctx: Ctx, owner = 'u-arun') {
+      const ticket = await ctx.media.createUpload(owner, {
+        purpose: 'POST_PHOTO',
+        contentType: 'image/jpeg',
+        sizeBytes: 100,
+      });
+      ctx.storage.put(ctx.storage.presigned.at(-1)!.key, JPEG, 100);
+      await ctx.media.complete(owner, ticket.mediaId);
+      return ticket.mediaId;
+    }
+    async function readyVideo(ctx: Ctx, owner = 'u-arun') {
+      const size = 5000 + ctx.storage.presigned.length;
+      ctx.videos.details.set(size, { durationSeconds: 45, width: 720, height: 1280 });
+      const ticket = await ctx.media.createUpload(owner, {
+        purpose: 'POST_VIDEO',
+        contentType: 'video/mp4',
+        sizeBytes: size,
+      });
+      ctx.storage.put(ctx.storage.presigned.at(-1)!.key, new Uint8Array([0, 0, 0, 24, 0x66, 0x74, 0x79, 0x70]), size);
+      await ctx.media.complete(owner, ticket.mediaId);
+      return ticket.mediaId;
+    }
+
+    it('comments and replies with photos (even without text), in order', async () => {
+      const ctx = await setup();
+      const [a, b] = [await readyPhoto(ctx), await readyPhoto(ctx)];
+      const comment = await ctx.service.add('u-arun', ctx.publicPost.id, undefined, undefined, { mediaIds: [b, a] });
+      expect(comment.body).toBe('');
+      expect(comment.photos.map((p) => p.id)).toEqual([b, a]);
+      expect(comment.video).toBeNull();
+      const reply = await ctx.service.add('u-kasun', ctx.publicPost.id, 'Lovely', comment.id, {
+        mediaIds: [await readyPhoto(ctx, 'u-kasun')],
+      });
+      expect(reply).toMatchObject({
+        parentId: comment.id,
+        photos: [expect.objectContaining({ url: expect.stringContaining('post_photo') })],
+      });
+    });
+
+    it('comments with one video', async () => {
+      const ctx = await setup();
+      const videoId = await readyVideo(ctx);
+      const comment = await ctx.service.add('u-arun', ctx.publicPost.id, 'Watch', undefined, { videoId });
+      expect(comment.video).toMatchObject({ id: videoId, durationSeconds: 45, width: 720, height: 1280 });
+      const listed = await ctx.service.list('u-kasun', ctx.publicPost.id, { limit: 5 });
+      expect(listed.items[0]!.video).toMatchObject({ id: videoId });
+    });
+
+    it('refuses empty comments, photos with a video, too many photos, and other people’s uploads', async () => {
+      const ctx = await setup();
+      await expect(ctx.service.add('u-arun', ctx.publicPost.id, '  ')).rejects.toThrow(
+        'Write a comment or add a photo or video.',
+      );
+      const photo = await readyPhoto(ctx);
+      const videoId = await readyVideo(ctx);
+      await expect(
+        ctx.service.add('u-arun', ctx.publicPost.id, 'x', undefined, { mediaIds: [photo], videoId }),
+      ).rejects.toThrow('A comment can have photos or a video, not both.');
+      const five: string[] = [];
+      for (let i = 0; i < 5; i++) five.push(await readyPhoto(ctx));
+      await expect(ctx.service.add('u-arun', ctx.publicPost.id, 'x', undefined, { mediaIds: five })).rejects.toThrow(
+        'You can add up to 4 photos.',
+      );
+      await expect(ctx.service.add('u-kasun', ctx.publicPost.id, 'x', undefined, { videoId })).rejects.toThrow(
+        'That video is missing or still uploading.',
+      );
     });
   });
 });

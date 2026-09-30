@@ -57,6 +57,8 @@ export class PrismaMediaRepository implements MediaRepository {
         status: MediaStatus.READY,
         postPhoto: { is: null },
         postVideo: { is: null },
+        commentPhoto: { is: null },
+        commentVideo: { is: null },
       },
       select: SELECT,
     });
