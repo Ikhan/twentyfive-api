@@ -251,9 +251,15 @@ model Comment {
   author        User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
   body          String
   createdAt     DateTime       @default(now()) @map("created_at")
+  /// Replies point at a top-level comment on the same post (one level: a reply is never a parent).
+  /// Deleting a comment deletes its replies.
+  parentId      String?        @map("parent_id") @db.Uuid
+  parent        Comment?       @relation("Replies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies       Comment[]      @relation("Replies")
   notifications Notification[]
 
   @@index([postId, createdAt, id])
+  @@index([parentId, createdAt, id])
   @@map("comments")
 }
 
@@ -291,6 +297,7 @@ enum NotificationType {
   REPOST
   QUOTE
   MENTION
+  REPLY
 }
 
 /// Something that happened to a user, caused by another user (the actor).

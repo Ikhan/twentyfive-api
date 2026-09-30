@@ -45,6 +45,21 @@ describe('NotificationsListener', () => {
     ]);
   });
 
+  it('tells whoever was replied to, and the post’s author once', async () => {
+    const { service, listener } = setup();
+    const reply = { commentId: 'c2', postId: 'p1', postAuthorId: 'kasun', commenterId: 'arun', excerpt: 'Yes' };
+    await listener.onCommentCreated({ ...reply, repliedTo: { commentId: 'c1', authorId: 'sachini' } });
+    const about = { actorId: 'arun', postId: 'p1', commentId: 'c2', excerpt: 'Yes' };
+    expect(service.notify.mock.calls).toEqual([
+      [{ ...about, recipientId: 'sachini', type: 'REPLY' }],
+      [{ ...about, recipientId: 'kasun', type: 'COMMENT' }],
+    ]);
+    service.notify.mockClear();
+    // Replying to the post's author: just the reply.
+    await listener.onCommentCreated({ ...reply, repliedTo: { commentId: 'c1', authorId: 'kasun' } });
+    expect(service.notify.mock.calls).toEqual([[{ ...about, recipientId: 'kasun', type: 'REPLY' }]]);
+  });
+
   it('clears notifications between people after a block', async () => {
     const { service, listener } = setup();
     await listener.onUserBlocked({ blockerId: 'kasun', blockedId: 'arun' });

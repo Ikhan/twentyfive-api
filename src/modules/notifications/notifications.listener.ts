@@ -41,18 +41,19 @@ export class NotificationsListener {
     });
   }
 
+  /**
+   * "Commented on your post" to the post's author; for replies, also "replied to your comment" to the
+   * person answered. The post's author gets only the reply if they're the one answered.
+   */
   @OnEvent(DomainEvent.CommentCreated, { promisify: true })
   onCommentCreated(e: CommentCreatedEvent): Promise<void> {
-    return this.safely(DomainEvent.CommentCreated, () =>
-      this.notifications.notify({
-        recipientId: e.postAuthorId,
-        actorId: e.commenterId,
-        type: 'COMMENT',
-        postId: e.postId,
-        commentId: e.commentId,
-        excerpt: e.excerpt,
-      }),
-    );
+    return this.safely(DomainEvent.CommentCreated, async () => {
+      const about = { actorId: e.commenterId, postId: e.postId, commentId: e.commentId, excerpt: e.excerpt };
+      if (e.repliedTo) await this.notifications.notify({ ...about, recipientId: e.repliedTo.authorId, type: 'REPLY' });
+      if (e.repliedTo?.authorId !== e.postAuthorId) {
+        await this.notifications.notify({ ...about, recipientId: e.postAuthorId, type: 'COMMENT' });
+      }
+    });
   }
 
   @OnEvent(DomainEvent.PostReposted, { promisify: true })
