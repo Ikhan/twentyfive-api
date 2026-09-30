@@ -1,3 +1,4 @@
+import { brotliCompressSync, deflateSync, gzipSync } from 'node:zlib';
 import { MockAgent } from 'undici';
 import { allowedUrl, BlockedAddressError, safeLookup, SafePageFetcher } from './safe-page-fetcher.js';
 
@@ -88,5 +89,31 @@ describe('SafePageFetcher', () => {
     site.intercept({ path: '/huge' }).reply(200, 'x'.repeat(2 * 1024 * 1024), { headers: HTML });
     const page = await fetcher.fetchPage('https://news.lk/huge');
     expect(page!.html.length).toBe(512 * 1024);
+  });
+
+  it('reads compressed pages (gzip, deflate, brotli), like most news sites send', async () => {
+    const { site, fetcher } = setup();
+    const html = '<head><title>Namal Rajapaksa granted bail</title></head>';
+    site.intercept({ path: '/gz' }).reply(200, gzipSync(html), { headers: { ...HTML, 'content-encoding': 'gzip' } });
+    site
+      .intercept({ path: '/df' })
+      .reply(200, deflateSync(html), { headers: { ...HTML, 'content-encoding': 'deflate' } });
+    site
+      .intercept({ path: '/br' })
+      .reply(200, brotliCompressSync(html), { headers: { ...HTML, 'content-encoding': 'br' } });
+    for (const path of ['/gz', '/df', '/br']) {
+      await expect(fetcher.fetchPage(`https://news.lk${path}`), path).resolves.toMatchObject({ html });
+    }
+  });
+
+  it('stops a compressed page at 512 KB unpacked, and refuses encodings it can’t read', async () => {
+    const { site, fetcher } = setup();
+    // ~10 KB that unpacks to 10 MB: only the first 512 KB is ever unpacked.
+    site.intercept({ path: '/bomb' }).reply(200, gzipSync(Buffer.alloc(10 * 1024 * 1024, 'a')), {
+      headers: { ...HTML, 'content-encoding': 'gzip' },
+    });
+    site.intercept({ path: '/odd' }).reply(200, 'xx', { headers: { ...HTML, 'content-encoding': 'compress' } });
+    expect((await fetcher.fetchPage('https://news.lk/bomb'))!.html.length).toBe(512 * 1024);
+    await expect(fetcher.fetchPage('https://news.lk/odd')).resolves.toBeNull();
   });
 });
