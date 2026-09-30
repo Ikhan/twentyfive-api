@@ -3,7 +3,10 @@ import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { UsernameTakenError } from './users.errors.js';
 import type { UsersRepository } from './users.repository.js';
-import type { MyProfile, ProfileChanges } from './users.types.js';
+import type { MyProfile, ProfileChanges, UserSummary } from './users.types.js';
+
+/** Makes user input literal inside a LIKE pattern. */
+const likeLiteral = (text: string) => text.replace(/[\\%_]/g, (c) => `\\${c}`);
 
 const SELECT = {
   id: true,
@@ -47,6 +50,29 @@ export class PrismaUsersRepository implements UsersRepository {
 
   async districtExists(districtId: string): Promise<boolean> {
     return (await this.prisma.district.count({ where: { id: districtId } })) > 0;
+  }
+
+  search(viewerId: string, prefix: string, take: number): Promise<UserSummary[]> {
+    const starts = `${likeLiteral(prefix)}%`;
+    const wordStarts = `% ${likeLiteral(prefix)}%`;
+    return this.prisma.$queryRaw<UserSummary[]>`
+      SELECT u.id, u.username, u.display_name AS "displayName", u.avatar_url AS "avatarUrl", u.is_private AS "isPrivate"
+      FROM users u
+      WHERE u.onboarded_at IS NOT NULL AND u.id <> ${viewerId}::uuid
+        AND (u.username LIKE ${starts} OR u.display_name ILIKE ${starts} OR u.display_name ILIKE ${wordStarts})
+        AND NOT EXISTS (
+          SELECT 1 FROM blocks b
+          WHERE (b.blocker_id = ${viewerId}::uuid AND b.blocked_id = u.id)
+             OR (b.blocker_id = u.id AND b.blocked_id = ${viewerId}::uuid)
+        )
+      ORDER BY
+        EXISTS (
+          SELECT 1 FROM follows f WHERE f.follower_id = ${viewerId}::uuid AND f.followee_id = u.id AND f.status = 'ACCEPTED'
+        ) DESC,
+        u.username LIKE ${starts} DESC,
+        (SELECT count(*) FROM follows f WHERE f.followee_id = u.id AND f.status = 'ACCEPTED') DESC,
+        u.username
+      LIMIT ${take}`;
   }
 
   async update(

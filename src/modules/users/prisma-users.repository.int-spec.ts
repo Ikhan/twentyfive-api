@@ -72,4 +72,39 @@ describe('PrismaUsersRepository (integration)', () => {
     const row = await insert('kasun');
     await expect(users.update(row.id, { hometownId: 'atlantis' })).rejects.toThrow(); // foreign key
   });
+
+  describe('search', () => {
+    const person = (username: string, displayName = username) =>
+      prisma.user.create({ data: { username, displayName, onboardedAt: new Date() } });
+    const found = async (viewerId: string, q: string) => (await users.search(viewerId, q, 10)).map((u) => u.username);
+
+    it('matches username or name-word prefixes, people you follow first, then usernames, then followers', async () => {
+      const me = await person('kasun');
+      const fan = await person('sam_a', 'Sam A');
+      const followed = await person('zsam', 'Sam Z'); // matches by name only, but you follow them
+      const popular = await person('samantha');
+      await person('nisam', 'Nisam'); // "sam" is inside the name, not at the start of a word
+      await prisma.user.create({ data: { username: 'samnew', displayName: 'samnew' } }); // not onboarded
+      await prisma.follow.create({ data: { followerId: me.id, followeeId: followed.id, status: 'ACCEPTED' } });
+      await prisma.follow.create({ data: { followerId: fan.id, followeeId: popular.id, status: 'ACCEPTED' } });
+      expect(await found(me.id, 'sam')).toEqual(['zsam', 'samantha', 'sam_a']);
+      expect(await users.search(me.id, 'sam', 1)).toEqual([
+        { id: followed.id, username: 'zsam', displayName: 'Sam Z', avatarUrl: null, isPrivate: false },
+      ]);
+      expect((await found(me.id, '')).slice(0, 1)).toEqual(['zsam']); // nothing typed yet: who you follow
+    });
+
+    it('leaves out you and blocks either way, and treats % and _ literally', async () => {
+      const me = await person('kasun');
+      const blocked = await person('kamal');
+      const blocker = await person('kanthi');
+      await person('ka_ru');
+      await person('kaxru');
+      await prisma.block.create({ data: { blockerId: me.id, blockedId: blocked.id } });
+      await prisma.block.create({ data: { blockerId: blocker.id, blockedId: me.id } });
+      expect(await found(me.id, 'ka')).toEqual(['ka_ru', 'kaxru']);
+      expect(await found(me.id, 'ka_')).toEqual(['ka_ru']);
+      expect(await found(me.id, '%')).toEqual([]);
+    });
+  });
 });

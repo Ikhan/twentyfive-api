@@ -209,4 +209,23 @@ describe('UsersService', () => {
       await expect(service.removeHeader('ghost')).rejects.toBeInstanceOf(NotFoundError);
     });
   });
+
+  describe('search', () => {
+    it('matches the start of a username or any word of a name, ignoring @ and case, never you', async () => {
+      const { service, repo } = setup();
+      repo.users.set('u-kasun', profile({ onboarded: true }));
+      repo.users.set(
+        'u-tharushi',
+        profile({ id: 'u-tharushi', username: 'tharushi', displayName: 'Tharushi Fernando', onboarded: true }),
+      );
+      repo.users.set('u-new', profile({ id: 'u-new', username: 'fernandonew', displayName: 'New', onboarded: false }));
+      const names = async (q: string) => (await service.search('u-kasun', q, 5)).map((u) => u.username);
+      expect(await names('@Tha')).toEqual(['tharushi']);
+      expect(await names(' fern ')).toEqual(['tharushi']); // "fernandonew" hasn't finished signing up
+      expect(await names('kasun')).toEqual([]);
+      expect(await service.search('u-kasun', '', 5)).toEqual([
+        { id: 'u-tharushi', username: 'tharushi', displayName: 'Tharushi Fernando', avatarUrl: null, isPrivate: false },
+      ]);
+    });
+  });
 });

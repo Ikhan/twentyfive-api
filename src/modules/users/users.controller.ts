@@ -7,10 +7,11 @@ import {
   SetAvatarDto,
   SetHeaderDto,
   UpdateProfileDto,
+  UserSearchQueryDto,
   UsernameQueryDto,
 } from './dto/profile.dto.js';
 import { UsersService, type UsernameAvailability } from './users.service.js';
-import type { MyProfile, PublicProfile } from './users.types.js';
+import type { MyProfile, PublicProfile, UserSummary } from './users.types.js';
 
 @ApiTags('users')
 @Controller('users')
@@ -63,6 +64,13 @@ export class UsersController {
   @ApiOperation({ summary: 'Live check for the username field' })
   availability(@CurrentUser() user: AuthUser, @Query() query: UsernameQueryDto): Promise<UsernameAvailability> {
     return this.users.usernameAvailability(query.username, user.id);
+  }
+
+  // Before ':username', so "search" isn't taken for a username (it's reserved).
+  @Get('search')
+  @ApiOperation({ summary: 'People to @mention: username or name starting with q; people you follow first' })
+  search(@CurrentUser() user: AuthUser, @Query() query: UserSearchQueryDto): Promise<UserSummary[]> {
+    return this.users.search(user.id, query.q, query.limit);
   }
 
   @Get(':username')
