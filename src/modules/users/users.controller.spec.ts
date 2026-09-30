@@ -41,7 +41,7 @@ describe('UsersController', () => {
   });
 
   it('searches people to mention as the signed-in user', async () => {
-    await controller.search(user, { q: 'tha', limit: 6 });
-    expect(service.search).toHaveBeenCalledWith('u-kasun', 'tha', 6);
+    await controller.search(user, { q: 'tha', limit: 6, mode: 'everyone' });
+    expect(service.search).toHaveBeenCalledWith('u-kasun', 'tha', 6, 'everyone');
   });
 });

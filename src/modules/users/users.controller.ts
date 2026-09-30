@@ -70,7 +70,7 @@ export class UsersController {
   @Get('search')
   @ApiOperation({ summary: 'People to @mention: username or name starting with q; people you follow first' })
   search(@CurrentUser() user: AuthUser, @Query() query: UserSearchQueryDto): Promise<UserSummary[]> {
-    return this.users.search(user.id, query.q, query.limit);
+    return this.users.search(user.id, query.q, query.limit, query.mode);
   }
 
   @Get(':username')

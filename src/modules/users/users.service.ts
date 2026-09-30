@@ -43,9 +43,15 @@ export class UsersService {
    * @mention suggestions for what's typed after "@" (with or without the @). Until it's specific
    * (MENTION_SEARCH_EVERYONE_FROM letters), only people you follow or who follow you; then everyone.
    */
-  search(viewerId: string, query: string, limit: number): Promise<UserSummary[]> {
+  search(
+    viewerId: string,
+    query: string,
+    limit: number,
+    mode: 'mention' | 'everyone' = 'mention',
+  ): Promise<UserSummary[]> {
     const prefix = query.trim().replace(/^@/, '').toLowerCase();
-    const connectionsOnly = prefix.length < MENTION_SEARCH_EVERYONE_FROM;
+    // The search box looks through everyone from the first letter (connections still come first).
+    const connectionsOnly = mode === 'mention' && prefix.length < MENTION_SEARCH_EVERYONE_FROM;
     return this.users.search(viewerId, prefix, { take: limit, connectionsOnly });
   }
 
