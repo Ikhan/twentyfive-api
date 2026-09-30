@@ -1,6 +1,17 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
-import { IsBoolean, IsNotEmpty, IsOptional, IsString, IsUUID, Matches, MaxLength } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import {
+  IsBoolean,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Matches,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 import { USERNAME_PATTERN } from '../../../common/validation/username.js';
 
 export const MAX_DISPLAY_NAME = 50;
@@ -96,4 +107,25 @@ export class SetHeaderDto {
   @ApiProperty({ description: 'Id of a completed HEADER upload (POST /media/uploads → /media/:id/complete)' })
   @IsUUID()
   mediaId!: string;
+}
+
+export const DEFAULT_USER_SEARCH = 6;
+
+/** `?q=…&limit=…` for @mention suggestions. */
+export class UserSearchQueryDto {
+  @ApiPropertyOptional({
+    description: 'What was typed after @ (username or name start); empty lists people you follow first',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  q: string = '';
+
+  @ApiPropertyOptional({ minimum: 1, maximum: 20, default: DEFAULT_USER_SEARCH })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(20)
+  limit: number = DEFAULT_USER_SEARCH;
 }

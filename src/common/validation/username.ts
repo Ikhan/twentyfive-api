@@ -20,6 +20,7 @@ export const RESERVED_USERNAMES: ReadonlySet<string> = new Set([
   'post',
   'posts',
   'root',
+  'search',
   'settings',
   'signin',
   'signup',

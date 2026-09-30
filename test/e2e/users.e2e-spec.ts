@@ -114,4 +114,15 @@ describe('Users (e2e)', () => {
     expect(res.body.data).not.toHaveProperty('onboarded');
     await http().get('/api/v1/users/nobody').set('Authorization', kasun.auth).expect(404);
   });
+
+  it('suggests people to @mention', async () => {
+    const res = await http().get('/api/v1/users/search?q=@Tha').set('Authorization', kasun.auth).expect(200);
+    expect(res.body.data).toEqual([
+      expect.objectContaining({ username: 'tharushi', displayName: 'Tharushi Fernando' }),
+    ]);
+    const byName = await http().get('/api/v1/users/search?q=fern&limit=3').set('Authorization', kasun.auth).expect(200);
+    expect(byName.body.data.map((u: { username: string }) => u.username)).toEqual(['tharushi']);
+    await http().get('/api/v1/users/search?q=a&limit=21').set('Authorization', kasun.auth).expect(400);
+    await http().get('/api/v1/users/search?q=a').expect(401);
+  });
 });

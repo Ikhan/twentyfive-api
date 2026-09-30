@@ -1,5 +1,5 @@
 import type { UsersRepository } from '../../src/modules/users/users.repository.js';
-import type { MyProfile, ProfileChanges } from '../../src/modules/users/users.types.js';
+import type { MyProfile, ProfileChanges, UserSummary } from '../../src/modules/users/users.types.js';
 
 const DISTRICTS: Record<string, string> = { kandy: 'Kandy', galle: 'Galle', badulla: 'Badulla' };
 
@@ -32,6 +32,28 @@ export class InMemoryUsersRepository implements UsersRepository {
 
   async findByUsername(username: string): Promise<MyProfile | null> {
     return [...this.users.values()].find((u) => u.username === username) ?? null;
+  }
+
+  /** Matching only (ordering by follows and followers is SQL, covered by the integration tests). */
+  async search(viewerId: string, prefix: string, take: number): Promise<UserSummary[]> {
+    return [...this.users.values()]
+      .filter((u) => u.id !== viewerId && u.onboarded)
+      .filter(
+        (u) =>
+          u.username.startsWith(prefix) ||
+          u.displayName
+            .toLowerCase()
+            .split(' ')
+            .some((w) => w.startsWith(prefix)),
+      )
+      .slice(0, take)
+      .map(({ id, username, displayName, avatarUrl, isPrivate }) => ({
+        id,
+        username,
+        displayName,
+        avatarUrl,
+        isPrivate,
+      }));
   }
 
   async usernameTaken(username: string, exceptUserId?: string): Promise<boolean> {

@@ -14,6 +14,7 @@ describe('UsersController', () => {
     removeAvatar: vi.fn().mockResolvedValue(me),
     setHeader: vi.fn().mockResolvedValue(me),
     removeHeader: vi.fn().mockResolvedValue(me),
+    search: vi.fn().mockResolvedValue([]),
   };
   const controller = new UsersController(service as unknown as UsersService);
   const user = { id: 'u-kasun' };
@@ -37,5 +38,10 @@ describe('UsersController', () => {
     expect(service.removeHeader).toHaveBeenCalledWith('u-kasun');
     await controller.profile('kasunperera');
     expect(service.byUsername).toHaveBeenCalledWith('kasunperera');
+  });
+
+  it('searches people to mention as the signed-in user', async () => {
+    await controller.search(user, { q: 'tha', limit: 6 });
+    expect(service.search).toHaveBeenCalledWith('u-kasun', 'tha', 6);
   });
 });

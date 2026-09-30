@@ -7,7 +7,7 @@ import { usernameProblem } from '../../common/validation/username.js';
 import { UnknownDistrictError, UsernameNotAllowedError, UsernameTakenError } from './users.errors.js';
 import { USERS_REPOSITORY, type UsersRepository } from './users.repository.js';
 import type { MediaPurpose } from '../media/media.types.js';
-import type { MyProfile, ProfileChanges, PublicProfile } from './users.types.js';
+import type { MyProfile, ProfileChanges, PublicProfile, UserSummary } from './users.types.js';
 
 export type UsernameAvailability = { available: true } | { available: false; reason: 'invalid' | 'reserved' | 'taken' };
 
@@ -34,6 +34,12 @@ export class UsersService {
     const user = await this.users.findById(userId);
     if (!user) throw new NotFoundError('Account not found.');
     return user;
+  }
+
+  /** @mention suggestions for what's typed after "@" (with or without the @; empty: people you follow first). */
+  search(viewerId: string, query: string, limit: number): Promise<UserSummary[]> {
+    const prefix = query.trim().replace(/^@/, '').toLowerCase();
+    return this.users.search(viewerId, prefix, limit);
   }
 
   /** Public view of any user. Private accounts still show their profile header; their posts are filtered elsewhere. */
