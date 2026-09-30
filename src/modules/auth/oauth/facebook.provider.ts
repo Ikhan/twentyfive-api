@@ -2,7 +2,9 @@ import { OAuthProvider as ProviderEnum } from '../../../generated/prisma/enums.j
 import { requestJson, type HttpFetch } from './oauth-http.js';
 import type { AuthorizationRequest, CodeExchange, OAuthProfile, OAuthProvider } from './oauth-provider.js';
 
-const GRAPH = 'https://graph.facebook.com/v21.0';
+/** Facebook retires Graph API versions about two years after release; move this forward before then. */
+const GRAPH_VERSION = 'v24.0';
+const GRAPH = `https://graph.facebook.com/${GRAPH_VERSION}`;
 
 interface FacebookMe {
   id: string;
@@ -33,7 +35,7 @@ export class FacebookProvider implements OAuthProvider {
       code_challenge: codeChallenge,
       code_challenge_method: 'S256',
     });
-    return `https://www.facebook.com/v21.0/dialog/oauth?${params}`;
+    return `https://www.facebook.com/${GRAPH_VERSION}/dialog/oauth?${params}`;
   }
 
   async fetchProfile({ code, codeVerifier, redirectUri }: CodeExchange): Promise<OAuthProfile> {

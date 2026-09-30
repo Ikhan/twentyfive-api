@@ -59,7 +59,7 @@ describe('GoogleProvider', () => {
 describe('FacebookProvider', () => {
   it('builds the dialog URL with PKCE', () => {
     const url = new FacebookProvider('fid', 'fs').authorizationUrl(auth);
-    expect(url).toMatch(/^https:\/\/www\.facebook\.com\/v21\.0\/dialog\/oauth\?/);
+    expect(url).toMatch(/^https:\/\/www\.facebook\.com\/v24\.0\/dialog\/oauth\?/);
     expect(params(url)).toMatchObject({
       client_id: 'fid',
       scope: 'public_profile,email',
