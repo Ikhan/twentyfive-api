@@ -76,9 +76,10 @@ describe('PrismaUsersRepository (integration)', () => {
   describe('search', () => {
     const person = (username: string, displayName = username) =>
       prisma.user.create({ data: { username, displayName, onboardedAt: new Date() } });
-    const found = async (viewerId: string, q: string) => (await users.search(viewerId, q, 10)).map((u) => u.username);
+    const found = async (viewerId: string, q: string, connectionsOnly = false) =>
+      (await users.search(viewerId, q, { take: 10, connectionsOnly })).map((u) => u.username);
 
-    it('matches username or name-word prefixes, people you follow first, then usernames, then followers', async () => {
+    it('matches username or name-word prefixes: connections first, then usernames, then followers', async () => {
       const me = await person('kasun');
       const fan = await person('sam_a', 'Sam A');
       const followed = await person('zsam', 'Sam Z'); // matches by name only, but you follow them
@@ -88,10 +89,23 @@ describe('PrismaUsersRepository (integration)', () => {
       await prisma.follow.create({ data: { followerId: me.id, followeeId: followed.id, status: 'ACCEPTED' } });
       await prisma.follow.create({ data: { followerId: fan.id, followeeId: popular.id, status: 'ACCEPTED' } });
       expect(await found(me.id, 'sam')).toEqual(['zsam', 'samantha', 'sam_a']);
-      expect(await users.search(me.id, 'sam', 1)).toEqual([
+      expect(await users.search(me.id, 'sam', { take: 1, connectionsOnly: false })).toEqual([
         { id: followed.id, username: 'zsam', displayName: 'Sam Z', avatarUrl: null, isPrivate: false },
       ]);
       expect((await found(me.id, '')).slice(0, 1)).toEqual(['zsam']); // nothing typed yet: who you follow
+    });
+
+    it('can stick to connections: people you follow and people who follow you, accepted only', async () => {
+      const me = await person('kasun');
+      const followed = await person('sara');
+      const follower = await person('sunil');
+      const requested = await person('sadun');
+      await person('saman'); // no connection
+      await prisma.follow.create({ data: { followerId: me.id, followeeId: followed.id, status: 'ACCEPTED' } });
+      await prisma.follow.create({ data: { followerId: follower.id, followeeId: me.id, status: 'ACCEPTED' } });
+      await prisma.follow.create({ data: { followerId: me.id, followeeId: requested.id, status: 'PENDING' } });
+      expect(await found(me.id, 's', true)).toEqual(['sara', 'sunil']);
+      expect(await found(me.id, 's')).toEqual(['sara', 'sunil', 'sadun', 'saman']);
     });
 
     it('leaves out you and blocks either way, and treats % and _ literally', async () => {

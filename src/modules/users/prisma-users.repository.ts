@@ -52,13 +52,26 @@ export class PrismaUsersRepository implements UsersRepository {
     return (await this.prisma.district.count({ where: { id: districtId } })) > 0;
   }
 
-  search(viewerId: string, prefix: string, take: number): Promise<UserSummary[]> {
+  search(
+    viewerId: string,
+    prefix: string,
+    { take, connectionsOnly }: { take: number; connectionsOnly: boolean },
+  ): Promise<UserSummary[]> {
     const starts = `${likeLiteral(prefix)}%`;
     const wordStarts = `% ${likeLiteral(prefix)}%`;
     return this.prisma.$queryRaw<UserSummary[]>`
       SELECT u.id, u.username, u.display_name AS "displayName", u.avatar_url AS "avatarUrl", u.is_private AS "isPrivate"
       FROM users u
+      CROSS JOIN LATERAL (
+        SELECT EXISTS (
+          SELECT 1 FROM follows f
+          WHERE f.status = 'ACCEPTED'
+            AND ((f.follower_id = ${viewerId}::uuid AND f.followee_id = u.id)
+              OR (f.follower_id = u.id AND f.followee_id = ${viewerId}::uuid))
+        ) AS connected
+      ) c
       WHERE u.onboarded_at IS NOT NULL AND u.id <> ${viewerId}::uuid
+        AND (c.connected OR NOT ${connectionsOnly})
         AND (u.username LIKE ${starts} OR u.display_name ILIKE ${starts} OR u.display_name ILIKE ${wordStarts})
         AND NOT EXISTS (
           SELECT 1 FROM blocks b
@@ -66,9 +79,7 @@ export class PrismaUsersRepository implements UsersRepository {
              OR (b.blocker_id = u.id AND b.blocked_id = ${viewerId}::uuid)
         )
       ORDER BY
-        EXISTS (
-          SELECT 1 FROM follows f WHERE f.follower_id = ${viewerId}::uuid AND f.followee_id = u.id AND f.status = 'ACCEPTED'
-        ) DESC,
+        c.connected DESC,
         u.username LIKE ${starts} DESC,
         (SELECT count(*) FROM follows f WHERE f.followee_id = u.id AND f.status = 'ACCEPTED') DESC,
         u.username

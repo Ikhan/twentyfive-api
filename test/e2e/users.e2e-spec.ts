@@ -122,6 +122,12 @@ describe('Users (e2e)', () => {
     ]);
     const byName = await http().get('/api/v1/users/search?q=fern&limit=3').set('Authorization', kasun.auth).expect(200);
     expect(byName.body.data.map((u: { username: string }) => u.username)).toEqual(['tharushi']);
+    // One or two letters: only your connections, until Tharushi follows you.
+    const short = () => http().get('/api/v1/users/search?q=t').set('Authorization', kasun.auth).expect(200);
+    expect((await short()).body.data).toEqual([]);
+    const tharushi = await prisma.user.findUniqueOrThrow({ where: { username: 'tharushi' } });
+    await prisma.follow.create({ data: { followerId: tharushi.id, followeeId: kasun.id, status: 'ACCEPTED' } });
+    expect((await short()).body.data.map((u: { username: string }) => u.username)).toEqual(['tharushi']);
     await http().get('/api/v1/users/search?q=a&limit=21').set('Authorization', kasun.auth).expect(400);
     await http().get('/api/v1/users/search?q=a').expect(401);
   });

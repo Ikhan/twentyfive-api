@@ -8,10 +8,10 @@ export interface UsersRepository {
   districtExists(districtId: string): Promise<boolean>;
   /**
    * People whose username, or any word of their name, starts with `prefix` (lowercase, may be empty),
-   * for @mentions. Onboarded, not the viewer, no block either way. People you follow first, then username
-   * matches, then more followers.
+   * for @mentions. Onboarded, not the viewer, no block either way. `connectionsOnly`: just people the
+   * viewer follows or who follow the viewer. Connections first, then username matches, then more followers.
    */
-  search(viewerId: string, prefix: string, take: number): Promise<UserSummary[]>;
+  search(viewerId: string, prefix: string, options: { take: number; connectionsOnly: boolean }): Promise<UserSummary[]>;
   /** Applies changes; `completeOnboarding` also stamps onboardedAt. Throws UsernameTakenError on a race. */
   update(userId: string, changes: ProfileChanges, options?: { completeOnboarding?: boolean }): Promise<MyProfile>;
 }

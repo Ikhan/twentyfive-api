@@ -109,7 +109,7 @@ export class SetHeaderDto {
   mediaId!: string;
 }
 
-export const DEFAULT_USER_SEARCH = 6;
+export const DEFAULT_USER_SEARCH = 10;
 
 /** `?q=…&limit=…` for @mention suggestions. */
 export class UserSearchQueryDto {
