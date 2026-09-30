@@ -77,4 +77,44 @@ describe('Comments (e2e)', () => {
     await http().delete(`/api/v1/comments/${b}`).set('Authorization', kasun.auth).expect(200);
     await http().delete(`/api/v1/comments/${b}`).set('Authorization', kasun.auth).expect(404);
   });
+
+  it('replies to comments one level deep, and tells whoever was answered', async () => {
+    const postId = await post(kasun, 'Perahera tonight');
+    const top = (await comment(arun, postId, 'Who is going?').expect(201)).body.data;
+    const reply = (post: string, user: TestUser, body: string, parentId: string) =>
+      http().post(`/api/v1/posts/${post}/comments`).set('Authorization', user.auth).send({ body, parentId });
+    const first = (await reply(postId, kasun, 'Me!', top.id).expect(201)).body.data;
+    expect(first).toMatchObject({ parentId: top.id, replyCount: 0 });
+    // Answering the reply stays in the same thread.
+    const second = (await reply(postId, arun, '@kasun great', first.id).expect(201)).body.data;
+    expect(second.parentId).toBe(top.id);
+
+    const list = await http().get(`/api/v1/posts/${postId}/comments`).set('Authorization', kasun.auth).expect(200);
+    expect(list.body.data.map((c: { body: string; replyCount: number }) => [c.body, c.replyCount])).toEqual([
+      ['Who is going?', 2],
+    ]);
+    const replies = await http().get(`/api/v1/comments/${top.id}/replies`).set('Authorization', kasun.auth).expect(200);
+    expect(replies.body.data.map((c: { body: string }) => c.body)).toEqual(['Me!', '@kasun great']);
+    const stats = await http().get(`/api/v1/posts/${postId}`).set('Authorization', kasun.auth).expect(200);
+    expect(stats.body.data.counts.comments).toBe(3);
+
+    // Arun hears Kasun replied; Kasun (post author, replied to) gets one REPLY, not a comment too.
+    const inbox = (user: TestUser) =>
+      http()
+        .get('/api/v1/notifications')
+        .set('Authorization', user.auth)
+        .expect(200)
+        .then((r) => r.body.data);
+    await vi.waitFor(async () => {
+      expect((await inbox(arun)).map((n: { type: string }) => n.type)).toEqual(['REPLY']);
+      expect((await inbox(kasun)).map((n: { type: string }) => n.type)).toEqual(['REPLY', 'COMMENT']);
+    });
+
+    // Unknown or other-post parents are 404s; replies go with their comment.
+    const other = await post(kasun, 'Other');
+    await reply(other, arun, 'hi', top.id).expect(404);
+    await http().delete(`/api/v1/comments/${top.id}`).set('Authorization', kasun.auth).expect(200);
+    await http().get(`/api/v1/comments/${top.id}/replies`).set('Authorization', kasun.auth).expect(404);
+    expect(await prisma.comment.count({ where: { postId } })).toBe(0);
+  });
 });

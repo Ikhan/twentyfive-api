@@ -118,4 +118,47 @@ describe('CommentsService', () => {
     const listed = await service.list('u-kasun', post.id, { limit: 5 });
     expect(listed.items[0]!.mentions).toEqual(['kasun', 'sachini']);
   });
+
+  describe('replies', () => {
+    it('replies under a comment, one level deep, telling whoever was answered', async () => {
+      const { service, emitted, publicPost } = await setup();
+      const top = await service.add('u-arun', publicPost.id, 'Who is going?');
+      const reply = await service.add('u-sachini', publicPost.id, 'Me!', top.id);
+      expect(reply).toMatchObject({ parentId: top.id, replyCount: 0 });
+      // Answering a reply joins the same thread, but tells the reply's author.
+      const answer = await service.add('u-kasun', publicPost.id, '@sachini see you', reply.id);
+      expect(answer.parentId).toBe(top.id);
+      expect(emitted.slice(1).map((e) => (e as { repliedTo?: unknown }).repliedTo)).toEqual([
+        { commentId: top.id, authorId: 'u-arun' },
+        { commentId: reply.id, authorId: 'u-sachini' },
+      ]);
+      const listed = await service.list('u-kasun', publicPost.id, { limit: 10 });
+      expect(listed.items.map((c) => [c.body, c.replyCount])).toEqual([['Who is going?', 2]]);
+      const replies = await service.replies('u-kasun', top.id, { limit: 1 });
+      expect(replies.items.map((c) => c.body)).toEqual(['Me!']);
+      const more = await service.replies('u-kasun', top.id, { limit: 1, cursor: replies.meta.nextCursor! });
+      expect(more.items.map((c) => [c.body, c.mentions])).toEqual([['@sachini see you', ['sachini']]]);
+    });
+
+    it('only replies to comments on the same post, and follows the post’s visibility', async () => {
+      const { service, publicPost, privatePost } = await setup();
+      const top = await service.add('u-arun', publicPost.id, 'Hello');
+      await expect(service.add('u-arun', publicPost.id, 'hi', '00000000-0000-0000-0000-000000000000')).rejects.toThrow(
+        CommentNotFoundError,
+      );
+      const hidden = await service.add('u-sachini', privatePost.id, 'secret');
+      await expect(service.add('u-arun', publicPost.id, 'hi', hidden.id)).rejects.toThrow(CommentNotFoundError);
+      await expect(service.replies('u-arun', hidden.id, { limit: 5 })).rejects.toThrow(PostNotFoundError);
+      await expect(service.replies('u-arun', 'nope', { limit: 5 })).rejects.toThrow(CommentNotFoundError);
+      expect((await service.replies('u-kasun', top.id, { limit: 5 })).items).toEqual([]);
+    });
+
+    it('deletes a comment’s replies with it', async () => {
+      const { service, repo, publicPost } = await setup();
+      const top = await service.add('u-arun', publicPost.id, 'Hello');
+      await service.add('u-kasun', publicPost.id, 'Hi back', top.id);
+      await service.remove('u-kasun', top.id); // the post's author
+      expect(repo.comments).toEqual([]);
+    });
+  });
 });

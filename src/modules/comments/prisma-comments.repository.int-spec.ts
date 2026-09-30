@@ -48,10 +48,34 @@ describe('PrismaCommentsRepository (integration)', () => {
 
   it('reports ownership and deletes', async () => {
     const c = await comments.create({ postId, authorId: arun, body: 'Nice' });
-    expect(await comments.findOwnership(c.id)).toEqual({ id: c.id, postId, authorId: arun, postAuthorId: kasun });
+    expect(await comments.findOwnership(c.id)).toEqual({
+      id: c.id,
+      postId,
+      parentId: null,
+      authorId: arun,
+      postAuthorId: kasun,
+    });
     await comments.delete(c.id);
     await comments.delete(c.id); // idempotent
     expect(await comments.findOwnership(c.id)).toBeNull();
+  });
+
+  it('keeps replies under their comment: listed separately, counted (minus blocks), and deleted with it', async () => {
+    const top = await comments.create({ postId, authorId: arun, body: 'Top' });
+    const blocked = (await prisma.user.create({ data: { username: 'troll', displayName: 'Troll' } })).id;
+    const reply = await comments.create({ postId, authorId: kasun, body: 'Reply', parentId: top.id });
+    await comments.create({ postId, authorId: blocked, body: 'Rude', parentId: top.id });
+    await prisma.block.create({ data: { blockerId: kasun, blockedId: blocked } });
+    expect(reply).toMatchObject({ parentId: top.id, replyCount: 0 });
+    // Top level: only the comment, with the replies Kasun can see counted.
+    expect((await comments.list(postId, kasun, { take: 10 })).map((c) => [c.body, c.replyCount])).toEqual([['Top', 1]]);
+    expect((await comments.list(postId, arun, { take: 10 }))[0]!.replyCount).toBe(2);
+    expect((await comments.list(postId, kasun, { take: 10, parentId: top.id })).map((c) => c.body)).toEqual(['Reply']);
+    expect(await comments.findOwnership(reply.id)).toMatchObject({ parentId: top.id });
+    // The post still counts every comment, replies included.
+    expect((await posts.findVisible(postId, arun))!.counts.comments).toBe(3);
+    await comments.delete(top.id);
+    expect(await prisma.comment.count()).toBe(0);
   });
 
   it('removes comments with their post', async () => {

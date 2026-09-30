@@ -14,7 +14,7 @@ export class CommentsController {
   constructor(private readonly comments: CommentsService) {}
 
   @Get('posts/:id/comments')
-  @ApiOperation({ summary: 'Comments on a post, oldest first' })
+  @ApiOperation({ summary: 'Top-level comments on a post, oldest first, each with its reply count' })
   list(
     @CurrentUser() user: AuthUser,
     @Param('id', new ParseUUIDPipe()) postId: string,
@@ -24,13 +24,23 @@ export class CommentsController {
   }
 
   @Post('posts/:id/comments')
-  @ApiOperation({ summary: 'Comment on a post' })
+  @ApiOperation({ summary: 'Comment on a post, or reply to one of its comments with parentId' })
   add(
     @CurrentUser() user: AuthUser,
     @Param('id', new ParseUUIDPipe()) postId: string,
     @Body() dto: CreateCommentDto,
   ): Promise<CommentView> {
-    return this.comments.add(user.id, postId, dto.body);
+    return this.comments.add(user.id, postId, dto.body, dto.parentId);
+  }
+
+  @Get('comments/:id/replies')
+  @ApiOperation({ summary: 'Replies to a comment, oldest first' })
+  replies(
+    @CurrentUser() user: AuthUser,
+    @Param('id', new ParseUUIDPipe()) commentId: string,
+    @Query() page: PageQueryDto,
+  ): Promise<Paginated<CommentView>> {
+    return this.comments.replies(user.id, commentId, page);
   }
 
   @Delete('comments/:id')

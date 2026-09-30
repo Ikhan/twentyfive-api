@@ -1,46 +1,64 @@
 import { randomUUID } from 'node:crypto';
 import type { CommentsRepository } from '../../src/modules/comments/comments.repository.js';
-import type { CommentCursor, CommentOwnership, CommentRecord } from '../../src/modules/comments/comments.types.js';
+import type {
+  CommentCursor,
+  CommentOwnership,
+  CommentRecord,
+  NewComment,
+} from '../../src/modules/comments/comments.types.js';
+
+type Stored = Omit<CommentRecord, 'replyCount'> & { postAuthorId: string };
 
 export class InMemoryCommentsRepository implements CommentsRepository {
-  readonly comments: (CommentRecord & { postAuthorId: string })[] = [];
+  readonly comments: Stored[] = [];
   private clock = Date.parse('2026-09-01T00:00:00Z');
 
   /** Post authors, so ownership checks work without a posts store. */
   constructor(private readonly postAuthorOf: (postId: string) => string = () => 'u-kasun') {}
 
-  async create({ postId, authorId, body }: { postId: string; authorId: string; body: string }): Promise<CommentRecord> {
-    const view: CommentRecord = {
+  async create({ postId, authorId, body, parentId = null }: NewComment): Promise<CommentRecord> {
+    const stored: Stored = {
       id: randomUUID(),
       postId,
+      parentId,
       body,
       createdAt: new Date((this.clock += 60_000)),
       author: { id: authorId, username: authorId, displayName: authorId, avatarUrl: null, isPrivate: false },
+      postAuthorId: this.postAuthorOf(postId),
     };
-    this.comments.push({ ...view, postAuthorId: this.postAuthorOf(postId) });
-    return view;
+    this.comments.push(stored);
+    return this.record(stored);
   }
 
   async list(
     postId: string,
     _viewerId: string,
-    { after, take }: { after?: CommentCursor; take: number },
+    { after, take, parentId = null }: { after?: CommentCursor; take: number; parentId?: string | null },
   ): Promise<CommentRecord[]> {
-    const key = (c: CommentRecord) => `${c.createdAt.toISOString()}|${c.id}`;
+    const key = (c: Stored) => `${c.createdAt.toISOString()}|${c.id}`;
     return this.comments
-      .filter((c) => c.postId === postId && (!after || key(c) > `${after.t}|${after.id}`))
+      .filter((c) => c.postId === postId && c.parentId === parentId && (!after || key(c) > `${after.t}|${after.id}`))
       .toSorted((a, b) => key(a).localeCompare(key(b)))
       .slice(0, take)
-      .map(({ id, postId: pid, body, createdAt, author }) => ({ id, postId: pid, body, createdAt, author }));
+      .map((c) => this.record(c));
   }
 
   async findOwnership(commentId: string): Promise<CommentOwnership | null> {
     const c = this.comments.find((x) => x.id === commentId);
-    return c ? { id: c.id, postId: c.postId, authorId: c.author.id, postAuthorId: c.postAuthorId } : null;
+    return c
+      ? { id: c.id, postId: c.postId, parentId: c.parentId, authorId: c.author.id, postAuthorId: c.postAuthorId }
+      : null;
   }
 
   async delete(commentId: string): Promise<void> {
-    const i = this.comments.findIndex((c) => c.id === commentId);
-    if (i >= 0) this.comments.splice(i, 1);
+    // Like ON DELETE CASCADE: its replies go too.
+    for (let i = this.comments.length - 1; i >= 0; i--) {
+      const c = this.comments[i]!;
+      if (c.id === commentId || c.parentId === commentId) this.comments.splice(i, 1);
+    }
+  }
+
+  private record({ postAuthorId: _p, ...c }: Stored): CommentRecord {
+    return { ...c, replyCount: this.comments.filter((r) => r.parentId === c.id).length };
   }
 }

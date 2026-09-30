@@ -45,6 +45,8 @@ export interface CommentCreatedEvent {
   commenterId: string;
   /** First part of the comment, for notification previews. */
   excerpt: string;
+  /** Set for replies: the comment answered (a top-level comment or a reply), and who wrote it. */
+  repliedTo?: { commentId: string; authorId: string };
 }
 
 export interface PostRepostedEvent {
