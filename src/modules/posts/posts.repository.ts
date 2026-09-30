@@ -1,4 +1,4 @@
-import type { NewPost, PostCursor, PostScope, PostView } from './posts.types.js';
+import type { NewPost, PostCursor, PostScope, PostRecord } from './posts.types.js';
 
 export interface AuthorAccess {
   id: string;
@@ -7,16 +7,18 @@ export interface AuthorAccess {
 }
 
 export interface PostsRepository {
-  create(post: NewPost): Promise<PostView>;
+  create(post: NewPost): Promise<PostRecord>;
   /** The post if `viewerId` is allowed to see it, else null. */
-  findVisible(postId: string, viewerId: string): Promise<PostView | null>;
+  findVisible(postId: string, viewerId: string): Promise<PostRecord | null>;
   findAuthorId(postId: string): Promise<string | null>;
   /** Newest first, only posts `viewerId` may see, after `cursor`. */
-  list(viewerId: string, scope: PostScope, page: { after?: PostCursor; take: number }): Promise<PostView[]>;
+  list(viewerId: string, scope: PostScope, page: { after?: PostCursor; take: number }): Promise<PostRecord[]>;
   delete(postId: string): Promise<void>;
   districtExists(districtId: string): Promise<boolean>;
   findAuthor(username: string): Promise<AuthorAccess | null>;
   isApprovedFollower(followerId: string, authorId: string): Promise<boolean>;
+  /** The onboarded accounts among these (lowercase) usernames. */
+  findUsersByUsernames(usernames: string[]): Promise<{ id: string; username: string }[]>;
 }
 
 export const POSTS_REPOSITORY = Symbol('POSTS_REPOSITORY');

@@ -5,7 +5,7 @@ import { notBlockedWith } from '../../prisma/block-filters.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { PhotoAlreadyUsedError } from './posts.errors.js';
 import type { AuthorAccess, PostsRepository } from './posts.repository.js';
-import type { NewPost, PostCursor, PostScope, PostView, QuotedPost } from './posts.types.js';
+import type { NewPost, PostCursor, PostScope, PostRecord, QuotedPost } from './posts.types.js';
 
 const AUTHOR = { id: true, username: true, displayName: true, avatarUrl: true, isPrivate: true } as const;
 const DISTRICT = { select: { id: true, name: true, colorFrom: true, colorTo: true } } as const;
@@ -79,7 +79,7 @@ function toQuoted(row: Row, viewerId: string): QuotedPost | null {
   };
 }
 
-function toView(row: Row, viewerId: string): PostView {
+function toView(row: Row, viewerId: string): PostRecord {
   const { district, _count, likes, reposts, isQuote: _isQuote, quotedPost: _quotedPost, ...post } = row;
   return {
     ...post,
@@ -137,7 +137,7 @@ function after(cursor?: PostCursor): Prisma.PostWhereInput {
 export class PrismaPostsRepository implements PostsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create({ photos, quotedPostId, ...post }: NewPost): Promise<PostView> {
+  async create({ photos, quotedPostId, ...post }: NewPost): Promise<PostRecord> {
     try {
       const row = await this.prisma.post.create({
         data: {
@@ -156,7 +156,7 @@ export class PrismaPostsRepository implements PostsRepository {
     }
   }
 
-  async findVisible(postId: string, viewerId: string): Promise<PostView | null> {
+  async findVisible(postId: string, viewerId: string): Promise<PostRecord | null> {
     const row = await this.prisma.post.findFirst({
       where: { AND: [{ id: postId }, visibleTo(viewerId)] },
       select: selectFor(viewerId),
@@ -168,7 +168,7 @@ export class PrismaPostsRepository implements PostsRepository {
     return (await this.prisma.post.findUnique({ where: { id: postId }, select: { authorId: true } }))?.authorId ?? null;
   }
 
-  async list(viewerId: string, scope: PostScope, page: { after?: PostCursor; take: number }): Promise<PostView[]> {
+  async list(viewerId: string, scope: PostScope, page: { after?: PostCursor; take: number }): Promise<PostRecord[]> {
     const rows = await this.prisma.post.findMany({
       where: { AND: [visibleTo(viewerId), scopeWhere(viewerId, scope), after(page.after)] },
       select: selectFor(viewerId),
@@ -195,5 +195,12 @@ export class PrismaPostsRepository implements PostsRepository {
       where: { followerId, followeeId: authorId, status: FollowStatus.ACCEPTED },
     });
     return count > 0;
+  }
+
+  findUsersByUsernames(usernames: string[]): Promise<{ id: string; username: string }[]> {
+    return this.prisma.user.findMany({
+      where: { username: { in: usernames }, onboardedAt: { not: null } },
+      select: { id: true, username: true },
+    });
   }
 }

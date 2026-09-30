@@ -16,6 +16,8 @@ export const DomainEvent = {
   PostReposted: 'post.reposted',
   /** Someone quoted a post. */
   PostQuoted: 'post.quoted',
+  /** A new post or comment @mentioned people who can see it. */
+  UsersMentioned: 'users.mentioned',
   /** Someone blocked another user (first time only). */
   UserBlocked: 'user.blocked',
 } as const;
@@ -62,5 +64,15 @@ export interface PostQuotedEvent {
   quotedPostId: string;
   quotedAuthorId: string;
   quoterId: string;
+  excerpt: string;
+}
+
+export interface UsersMentionedEvent {
+  mentionerId: string;
+  /** Who to tell: real accounts that can see the post, minus anyone told another way. */
+  recipientIds: string[];
+  postId: string;
+  /** Set when the mention is in a comment on `postId`. */
+  commentId?: string;
   excerpt: string;
 }

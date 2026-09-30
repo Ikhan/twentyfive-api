@@ -290,6 +290,7 @@ enum NotificationType {
   COMMENT
   REPOST
   QUOTE
+  MENTION
 }
 
 /// Something that happened to a user, caused by another user (the actor).

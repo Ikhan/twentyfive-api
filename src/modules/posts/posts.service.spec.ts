@@ -21,7 +21,9 @@ function setup() {
   const events = new EventEmitter2();
   const quoted: unknown[] = [];
   events.on(DomainEvent.PostQuoted, (e) => quoted.push(e));
-  return { repo, storage, media, quoted, service: new PostsService(repo, media, events) };
+  const mentioned: unknown[] = [];
+  events.on(DomainEvent.UsersMentioned, (e) => mentioned.push(e));
+  return { repo, storage, media, quoted, mentioned, service: new PostsService(repo, media, events) };
 }
 
 async function readyPhoto(ctx: ReturnType<typeof setup>, owner = 'u-kasun') {
@@ -230,6 +232,52 @@ describe('PostsService', () => {
       await expect(service.create('u-arun', { body: '  ', quotedPostId: original.id })).rejects.toBeInstanceOf(
         EmptyPostError,
       );
+    });
+  });
+
+  describe('mentions', () => {
+    it('tells people mentioned in a post who can see it, and lists real handles for links', async () => {
+      const { service, mentioned } = setup();
+      const post = await service.create('u-kasun', { body: 'Perahera with @Arun, @sachini, @kasun and @nobody' });
+      expect(post.mentions).toEqual(['arun', 'sachini', 'kasun']); // real accounts only
+      expect(mentioned).toEqual([
+        {
+          mentionerId: 'u-kasun',
+          recipientIds: ['u-arun', 'u-sachini'], // not yourself
+          postId: post.id,
+          commentId: undefined,
+          excerpt: 'Perahera with @Arun, @sachini, @kasun and @nobody',
+        },
+      ]);
+      await expect(service.get(post.id, 'u-arun')).resolves.toMatchObject({ mentions: ['arun', 'sachini', 'kasun'] });
+      const feed = await service.feed('u-arun', 'for-you', { limit: 5 });
+      expect(feed.items[0]!.mentions).toEqual(['arun', 'sachini', 'kasun']);
+    });
+
+    it('doesn’t tell people who can’t see the post, and stays quiet with no real mentions', async () => {
+      const { service, repo, mentioned } = setup();
+      await service.create('u-kasun', { body: 'Just for followers @arun @sachini', audience: 'FOLLOWERS' });
+      expect(mentioned).toEqual([]);
+      repo.approved.add('u-arun>u-kasun');
+      await service.create('u-kasun', { body: 'Again @arun @sachini', audience: 'FOLLOWERS' });
+      expect(mentioned).toEqual([expect.objectContaining({ recipientIds: ['u-arun'] })]);
+      await service.create('u-kasun', { body: 'Nobody here @ghost, me@arun.lk' });
+      expect(mentioned).toHaveLength(1);
+    });
+
+    it('doesn’t also send a mention to the author being quoted', async () => {
+      const { service, mentioned, quoted } = setup();
+      const original = await service.create('u-arun', { body: 'Jaffna crab curry' });
+      await service.create('u-kasun', { body: 'Yes @arun!', quotedPostId: original.id });
+      expect(quoted).toHaveLength(1);
+      expect(mentioned).toEqual([]);
+    });
+
+    it('links handles in the quoted post too', async () => {
+      const { service } = setup();
+      const original = await service.create('u-arun', { body: 'Thanks @sachini' });
+      const quote = await service.create('u-kasun', { body: 'Agreed', quotedPostId: original.id });
+      expect(quote.mentions).toEqual(['sachini']);
     });
   });
 });

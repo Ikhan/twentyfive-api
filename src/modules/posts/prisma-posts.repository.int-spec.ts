@@ -3,7 +3,7 @@ import { resetDatabase } from '../../../test/helpers/test-db.js';
 import { testPrismaService } from '../../../test/helpers/test-prisma-service.js';
 import { PhotoAlreadyUsedError } from './posts.errors.js';
 import { PrismaPostsRepository } from './prisma-posts.repository.js';
-import type { PostView } from './posts.types.js';
+import type { PostRecord } from './posts.types.js';
 
 describe('PrismaPostsRepository (integration)', () => {
   const prisma = testPrismaService();
@@ -44,7 +44,7 @@ describe('PrismaPostsRepository (integration)', () => {
       audience: extra.audience ?? 'EVERYONE',
       photos: [],
     });
-  const bodies = (list: PostView[]) => list.map((p) => p.body);
+  const bodies = (list: PostRecord[]) => list.map((p) => p.body);
 
   it('embeds the quoted post for each viewer, and says when it’s unavailable', async () => {
     const original = await post('kasun', 'Perahera tonight');
@@ -228,5 +228,12 @@ describe('PrismaPostsRepository (integration)', () => {
     await posts.delete(created.id);
     await posts.delete(created.id);
     await expect(posts.findAuthorId(created.id)).resolves.toBeNull();
+  });
+
+  it('finds onboarded accounts by username, for mentions', async () => {
+    await prisma.user.updateMany({ where: { username: { in: ['kasun', 'arun'] } }, data: { onboardedAt: new Date() } });
+    const found = await posts.findUsersByUsernames(['kasun', 'arun', 'sachini', 'ghost']);
+    expect(found.map((x) => x.username).sort()).toEqual(['arun', 'kasun']); // sachini hasn't finished signing up
+    expect(found.find((x) => x.username === 'kasun')).toEqual({ id: u.kasun, username: 'kasun' });
   });
 });

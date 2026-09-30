@@ -89,4 +89,40 @@ describe('Notifications (e2e)', () => {
   it('needs sign-in', async () => {
     await http().get('/api/v1/notifications').expect(401);
   });
+
+  it('notifies people mentioned in posts and comments, if they can see them, and links real handles', async () => {
+    const post = await http()
+      .post('/api/v1/posts')
+      .set('Authorization', kasun.auth)
+      .send({ body: 'Perahera tonight @arun @sachini @ghost' })
+      .expect(201);
+    expect(post.body.data.mentions).toEqual(['arun', 'sachini']);
+    await eventually(arun, (n) =>
+      expect(n.map((x) => [x.type, x.actor.username, x.excerpt])).toEqual([
+        ['MENTION', 'kasun', 'Perahera tonight @arun @sachini @ghost'],
+      ]),
+    );
+    await eventually(sachini, (n) => expect(n.map((x) => x.type)).toEqual(['MENTION']));
+
+    // In a comment: Kasun gets the comment, not a mention too; Arun is already mentioned in the post, but again here.
+    const comment = await http()
+      .post(`/api/v1/posts/${post.body.data.id}/comments`)
+      .set('Authorization', sachini.auth)
+      .send({ body: '@kasun @arun count me in' })
+      .expect(201);
+    expect(comment.body.data.mentions).toEqual(['kasun', 'arun']);
+    await eventually(arun, (n) => expect(n.map((x) => x.type)).toEqual(['MENTION', 'MENTION']));
+    await eventually(kasun, (n) => expect(n.map((x) => x.type)).toEqual(['COMMENT']));
+
+    // Followers-only: someone who isn't a follower isn't told.
+    await http()
+      .post('/api/v1/posts')
+      .set('Authorization', sachini.auth)
+      .send({ body: 'Just us @kasun', audience: 'FOLLOWERS' })
+      .expect(201);
+    const feed = await http().get('/api/v1/feed').set('Authorization', arun.auth).expect(200);
+    expect(feed.body.data[0].mentions).toEqual(['arun', 'sachini']);
+    await new Promise((r) => setTimeout(r, 200));
+    expect((await inbox(kasun)).map((x) => x.type)).toEqual(['COMMENT']);
+  });
 });

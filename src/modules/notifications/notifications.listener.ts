@@ -8,6 +8,7 @@ import {
   type PostQuotedEvent,
   type PostRepostedEvent,
   type UserBlockedEvent,
+  type UsersMentionedEvent,
 } from '../../common/events/domain-events.js';
 import { NotificationsService } from './notifications.service.js';
 
@@ -78,6 +79,23 @@ export class NotificationsListener {
         excerpt: e.excerpt,
       }),
     );
+  }
+
+  /** "Kasun mentioned you": links to the post, previewing the post or comment text. */
+  @OnEvent(DomainEvent.UsersMentioned, { promisify: true })
+  onUsersMentioned(e: UsersMentionedEvent): Promise<void> {
+    return this.safely(DomainEvent.UsersMentioned, async () => {
+      for (const recipientId of e.recipientIds) {
+        await this.notifications.notify({
+          recipientId,
+          actorId: e.mentionerId,
+          type: 'MENTION',
+          postId: e.postId,
+          commentId: e.commentId,
+          excerpt: e.excerpt,
+        });
+      }
+    });
   }
 
   @OnEvent(DomainEvent.UserBlocked, { promisify: true })

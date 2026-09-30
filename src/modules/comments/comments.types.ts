@@ -1,11 +1,16 @@
 import type { UserSummary } from '../users/users.types.js';
 
-export interface CommentView {
+export interface CommentRecord {
   id: string;
   postId: string;
   body: string;
   createdAt: Date;
   author: UserSummary;
+}
+
+export interface CommentView extends CommentRecord {
+  /** @handles in the comment that belong to real accounts, lowercase. */
+  mentions: string[];
 }
 
 export interface CommentOwnership {

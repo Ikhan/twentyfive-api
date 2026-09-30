@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { AuthorAccess, PostsRepository } from '../../src/modules/posts/posts.repository.js';
-import type { NewPost, PostCursor, PostScope, PostView } from '../../src/modules/posts/posts.types.js';
+import type { NewPost, PostCursor, PostScope, PostRecord } from '../../src/modules/posts/posts.types.js';
 
 const AUTHORS: Record<string, AuthorAccess> = {
   'u-kasun': { id: 'u-kasun', username: 'kasun', isPrivate: false },
@@ -10,15 +10,15 @@ const AUTHORS: Record<string, AuthorAccess> = {
 
 /** Mirrors the SQL visibility rule in memory, for service unit tests. */
 export class InMemoryPostsRepository implements PostsRepository {
-  readonly posts: PostView[] = [];
+  readonly posts: PostRecord[] = [];
   /** quote post id → quoted post id (null once the quoted post is deleted) */
   readonly quotes = new Map<string, string | null>();
   readonly approved = new Set<string>(); // `${follower}>${author}`
   private clock = Date.parse('2026-09-01T00:00:00Z');
 
-  async create({ photos, quotedPostId, ...post }: NewPost): Promise<PostView> {
+  async create({ photos, quotedPostId, ...post }: NewPost): Promise<PostRecord> {
     const author = AUTHORS[post.authorId]!;
-    const view: PostView = {
+    const view: PostRecord = {
       id: randomUUID(),
       body: post.body,
       audience: post.audience,
@@ -42,9 +42,9 @@ export class InMemoryPostsRepository implements PostsRepository {
   }
 
   /** The post as `viewerId` sees it: quote counts and the quoted post (if they may see it). */
-  private viewFor(post: PostView, viewerId: string): PostView {
+  private viewFor(post: PostRecord, viewerId: string): PostRecord {
     const quotes = [...this.quotes.values()].filter((id) => id === post.id).length;
-    let quoted: PostView['quoted'] = null;
+    let quoted: PostRecord['quoted'] = null;
     if (this.quotes.has(post.id)) {
       const original = this.posts.find((p) => p.id === this.quotes.get(post.id));
       quoted =
@@ -63,7 +63,7 @@ export class InMemoryPostsRepository implements PostsRepository {
     return { ...post, counts: { ...post.counts, quotes }, quoted };
   }
 
-  private visible(post: PostView, viewerId: string): boolean {
+  private visible(post: PostRecord, viewerId: string): boolean {
     return (
       post.author.id === viewerId ||
       (post.audience === 'EVERYONE' && !post.author.isPrivate) ||
@@ -71,7 +71,7 @@ export class InMemoryPostsRepository implements PostsRepository {
     );
   }
 
-  async findVisible(postId: string, viewerId: string): Promise<PostView | null> {
+  async findVisible(postId: string, viewerId: string): Promise<PostRecord | null> {
     const post = this.posts.find((p) => p.id === postId);
     return post && this.visible(post, viewerId) ? this.viewFor(post, viewerId) : null;
   }
@@ -80,13 +80,13 @@ export class InMemoryPostsRepository implements PostsRepository {
     return this.posts.find((p) => p.id === postId)?.author.id ?? null;
   }
 
-  async list(viewerId: string, scope: PostScope, page: { after?: PostCursor; take: number }): Promise<PostView[]> {
-    const inScope = (p: PostView) =>
+  async list(viewerId: string, scope: PostScope, page: { after?: PostCursor; take: number }): Promise<PostRecord[]> {
+    const inScope = (p: PostRecord) =>
       scope.kind === 'everything' ||
       (scope.kind === 'district' && p.district?.id === scope.districtId) ||
       (scope.kind === 'author' && p.author.id === scope.authorId) ||
       (scope.kind === 'following' && (p.author.id === viewerId || this.approved.has(`${viewerId}>${p.author.id}`)));
-    const afterCursor = (p: PostView) =>
+    const afterCursor = (p: PostRecord) =>
       !page.after ||
       p.createdAt < new Date(page.after.t) ||
       (p.createdAt.getTime() === Date.parse(page.after.t) && p.id < page.after.id);
@@ -114,5 +114,11 @@ export class InMemoryPostsRepository implements PostsRepository {
 
   async isApprovedFollower(followerId: string, authorId: string): Promise<boolean> {
     return this.approved.has(`${followerId}>${authorId}`);
+  }
+
+  async findUsersByUsernames(usernames: string[]): Promise<{ id: string; username: string }[]> {
+    return Object.values(AUTHORS)
+      .filter((a) => usernames.includes(a.username))
+      .map(({ id, username }) => ({ id, username }));
   }
 }

@@ -3,7 +3,7 @@ import type { Prisma } from '../../generated/prisma/client.js';
 import { notBlockedWith } from '../../prisma/block-filters.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { CommentsRepository } from './comments.repository.js';
-import type { CommentCursor, CommentOwnership, CommentView } from './comments.types.js';
+import type { CommentCursor, CommentOwnership, CommentRecord } from './comments.types.js';
 
 const SELECT = {
   id: true,
@@ -17,7 +17,7 @@ const SELECT = {
 export class PrismaCommentsRepository implements CommentsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  create(input: { postId: string; authorId: string; body: string }): Promise<CommentView> {
+  create(input: { postId: string; authorId: string; body: string }): Promise<CommentRecord> {
     return this.prisma.comment.create({ data: input, select: SELECT });
   }
 
@@ -25,7 +25,7 @@ export class PrismaCommentsRepository implements CommentsRepository {
     postId: string,
     viewerId: string,
     { after, take }: { after?: CommentCursor; take: number },
-  ): Promise<CommentView[]> {
+  ): Promise<CommentRecord[]> {
     const t = after && new Date(after.t);
     return this.prisma.comment.findMany({
       where: {
