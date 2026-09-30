@@ -6,6 +6,7 @@ import { PrismaService } from '../../prisma/prisma.service.js';
 import { PhotoAlreadyUsedError } from './posts.errors.js';
 import type { AuthorAccess, PostsRepository } from './posts.repository.js';
 import type { NewPost, PostCursor, PostScope, PostRecord, QuotedPost } from './posts.types.js';
+import type { LinkPreview } from '../links/link-preview.types.js';
 
 const AUTHOR = { id: true, username: true, displayName: true, avatarUrl: true, isPrivate: true } as const;
 const DISTRICT = { select: { id: true, name: true, colorFrom: true, colorTo: true } } as const;
@@ -26,6 +27,7 @@ function selectFor(viewerId: string) {
     likes: mine,
     reposts: mine,
     isQuote: true,
+    linkPreview: true,
     quotedPost: {
       select: {
         id: true,
@@ -80,9 +82,10 @@ function toQuoted(row: Row, viewerId: string): QuotedPost | null {
 }
 
 function toView(row: Row, viewerId: string): PostRecord {
-  const { district, _count, likes, reposts, isQuote: _isQuote, quotedPost: _quotedPost, ...post } = row;
+  const { district, _count, likes, reposts, isQuote: _isQuote, quotedPost: _quotedPost, linkPreview, ...post } = row;
   return {
     ...post,
+    link: (linkPreview as LinkPreview | null) ?? null,
     district: toDistrict(district),
     counts: { comments: _count.comments, likes: _count.likes, reposts: _count.reposts, quotes: _count.quotedBy },
     viewer: { liked: likes.length > 0, reposted: reposts.length > 0 },
@@ -137,11 +140,12 @@ function after(cursor?: PostCursor): Prisma.PostWhereInput {
 export class PrismaPostsRepository implements PostsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create({ photos, quotedPostId, ...post }: NewPost): Promise<PostRecord> {
+  async create({ photos, quotedPostId, link, ...post }: NewPost): Promise<PostRecord> {
     try {
       const row = await this.prisma.post.create({
         data: {
           ...post,
+          ...(link && { linkPreview: { ...link } }),
           ...(quotedPostId && { isQuote: true, quotedPostId }),
           photos: { create: photos.map((p, position) => ({ ...p, position })) },
         },

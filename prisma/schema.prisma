@@ -215,6 +215,9 @@ model Post {
   quotedPostId String?      @map("quoted_post_id") @db.Uuid
   quotedPost   Post?        @relation("Quotes", fields: [quotedPostId], references: [id], onDelete: SetNull)
   quotedBy     Post[]       @relation("Quotes")
+  /// The card for the first link in the body ({ url, title, description, image, siteName }), fetched
+  /// when the post was made. Null without a link, with photos, or when the page had no card.
+  linkPreview  Json?        @map("link_preview")
 
   photos        PostPhoto[]
   comments      Comment[]

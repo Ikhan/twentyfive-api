@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { AuthorAccess, PostsRepository } from '../../src/modules/posts/posts.repository.js';
+import type { LinkPreview } from '../../src/modules/links/link-preview.types.js';
 import type { NewPost, PostCursor, PostScope, PostRecord } from '../../src/modules/posts/posts.types.js';
 
 const AUTHORS: Record<string, AuthorAccess> = {
@@ -16,7 +17,7 @@ export class InMemoryPostsRepository implements PostsRepository {
   readonly approved = new Set<string>(); // `${follower}>${author}`
   private clock = Date.parse('2026-09-01T00:00:00Z');
 
-  async create({ photos, quotedPostId, ...post }: NewPost): Promise<PostRecord> {
+  async create({ photos, quotedPostId, link = null, ...post }: NewPost): Promise<PostRecord> {
     const author = AUTHORS[post.authorId]!;
     const view: PostRecord = {
       id: randomUUID(),
@@ -35,6 +36,7 @@ export class InMemoryPostsRepository implements PostsRepository {
       counts: { comments: 0, likes: 0, reposts: 0, quotes: 0 },
       viewer: { liked: false, reposted: false },
       quoted: null,
+      link,
     };
     this.posts.push(view);
     if (quotedPostId) this.quotes.set(view.id, quotedPostId);
@@ -120,5 +122,16 @@ export class InMemoryPostsRepository implements PostsRepository {
     return Object.values(AUTHORS)
       .filter((a) => usernames.includes(a.username))
       .map(({ id, username }) => ({ id, username }));
+  }
+}
+
+/** Link cards for service tests: known pages, or none. */
+export class FakeLinkPreviews {
+  readonly asked: string[] = [];
+  constructor(private readonly cards: Record<string, LinkPreview> = {}) {}
+
+  async preview(url: string): Promise<LinkPreview | null> {
+    this.asked.push(url);
+    return this.cards[url] ?? null;
   }
 }

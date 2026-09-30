@@ -1,6 +1,6 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { FakeObjectStorage, InMemoryMediaRepository, JPEG } from '../../../test/fakes/media-fakes.js';
-import { InMemoryPostsRepository } from '../../../test/fakes/posts-fakes.js';
+import { FakeLinkPreviews, InMemoryPostsRepository } from '../../../test/fakes/posts-fakes.js';
 import { NotFoundError, ValidationError } from '../../common/errors/app-error.js';
 import { DomainEvent } from '../../common/events/domain-events.js';
 import { InvalidUploadError } from '../media/media.errors.js';
@@ -21,9 +21,18 @@ function setup() {
   const events = new EventEmitter2();
   const quoted: unknown[] = [];
   events.on(DomainEvent.PostQuoted, (e) => quoted.push(e));
+  const links = new FakeLinkPreviews({
+    'https://www.nytimes.com/international/': {
+      url: 'https://www.nytimes.com/international/',
+      title: 'International News',
+      description: 'World news',
+      image: 'https://static01.nyt.com/card.jpg',
+      siteName: 'The New York Times',
+    },
+  });
   const mentioned: unknown[] = [];
   events.on(DomainEvent.UsersMentioned, (e) => mentioned.push(e));
-  return { repo, storage, media, quoted, mentioned, service: new PostsService(repo, media, events) };
+  return { repo, storage, media, quoted, mentioned, links, service: new PostsService(repo, media, events, links) };
 }
 
 async function readyPhoto(ctx: ReturnType<typeof setup>, owner = 'u-kasun') {
@@ -278,6 +287,31 @@ describe('PostsService', () => {
       const original = await service.create('u-arun', { body: 'Thanks @sachini' });
       const quote = await service.create('u-kasun', { body: 'Agreed', quotedPostId: original.id });
       expect(quote.mentions).toEqual(['sachini']);
+    });
+  });
+
+  describe('link cards', () => {
+    it('adds the card for the first link, and keeps it with the post', async () => {
+      const { service, links } = setup();
+      const post = await service.create('u-kasun', { body: 'Worth a read: https://www.nytimes.com/international/.' });
+      expect(links.asked).toEqual(['https://www.nytimes.com/international/']);
+      expect(post.link).toMatchObject({ title: 'International News', siteName: 'The New York Times' });
+      await expect(service.get(post.id, 'u-arun')).resolves.toMatchObject({ link: { title: 'International News' } });
+    });
+
+    it('has no card without a link, when the page has none, or when the post has photos', async () => {
+      const ctx = setup();
+      await expect(ctx.service.create('u-kasun', { body: 'Just words' })).resolves.toMatchObject({ link: null });
+      await expect(ctx.service.create('u-kasun', { body: 'https://nothing.lk/' })).resolves.toMatchObject({
+        link: null,
+      });
+      const photo = await readyPhoto(ctx);
+      const withPhoto = await ctx.service.create('u-kasun', {
+        body: 'https://www.nytimes.com/international/',
+        mediaIds: [photo],
+      });
+      expect(withPhoto.link).toBeNull();
+      expect(ctx.links.asked).toEqual(['https://nothing.lk/']);
     });
   });
 });

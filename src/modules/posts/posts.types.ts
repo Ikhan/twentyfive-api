@@ -1,3 +1,4 @@
+import type { LinkPreview } from '../links/link-preview.types.js';
 import type { UserSummary } from '../users/users.types.js';
 
 export type PostAudience = 'EVERYONE' | 'FOLLOWERS';
@@ -28,6 +29,8 @@ export interface PostRecord {
   viewer: PostViewerState;
   /** For quote posts, the quoted post (one level deep); null for ordinary posts. */
   quoted: QuotedPost | null;
+  /** The card for the first link in the post, if it had one (not with photos). */
+  link: LinkPreview | null;
 }
 
 /** A post as the API returns it. */
@@ -77,6 +80,8 @@ export interface NewPost {
   photos: { mediaId: string; url: string }[];
   /** Set for quote posts: the post being quoted. */
   quotedPostId?: string | null;
+  /** The card for its first link, if there is one. */
+  link?: LinkPreview | null;
 }
 
 export interface PostCursor {

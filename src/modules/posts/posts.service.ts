@@ -4,7 +4,9 @@ import type { Paginated } from '../../common/api-response.js';
 import { NotFoundError, ValidationError } from '../../common/errors/app-error.js';
 import { DomainEvent, type PostQuotedEvent, type UsersMentionedEvent } from '../../common/events/domain-events.js';
 import { decodeCursor, toPage } from '../../common/pagination/cursor.js';
+import { firstLink } from '../../common/text/links.js';
 import { mentionedUsernames } from '../../common/text/mentions.js';
+import { LinkPreviewsService } from '../links/link-previews.service.js';
 import { MediaService } from '../media/media.service.js';
 import {
   CannotQuoteError,
@@ -37,6 +39,7 @@ export class PostsService {
     @Inject(POSTS_REPOSITORY) private readonly posts: PostsRepository,
     private readonly media: MediaService,
     private readonly events: EventEmitter2,
+    @Inject(LinkPreviewsService) private readonly links: Pick<LinkPreviewsService, 'preview'>,
   ) {}
 
   async create(
@@ -58,6 +61,9 @@ export class PostsService {
     }
     const quoted = input.quotedPostId ? await this.quotable(input.quotedPostId, authorId) : null;
     const photos = mediaIds.length ? await this.media.claim(authorId, mediaIds, 'POST_PHOTO') : [];
+    // A card for the first link, like Twitter; photos take its place. Usually cached from the composer.
+    const url = photos.length === 0 ? firstLink(body) : null;
+    const link = url ? await this.links.preview(url) : null;
     const post = await this.posts.create({
       authorId,
       districtId: input.districtId ?? null,
@@ -65,6 +71,7 @@ export class PostsService {
       audience: input.audience ?? 'EVERYONE',
       photos: photos.map((p) => ({ mediaId: p.id, url: p.url })),
       quotedPostId: quoted?.id ?? null,
+      link,
     });
     if (quoted) {
       this.events.emit(DomainEvent.PostQuoted, {

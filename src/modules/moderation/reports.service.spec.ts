@@ -1,7 +1,7 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { FakeObjectStorage, InMemoryMediaRepository } from '../../../test/fakes/media-fakes.js';
 import { InMemoryReportsRepository } from '../../../test/fakes/moderation-fakes.js';
-import { InMemoryPostsRepository } from '../../../test/fakes/posts-fakes.js';
+import { FakeLinkPreviews, InMemoryPostsRepository } from '../../../test/fakes/posts-fakes.js';
 import { MediaService } from '../media/media.service.js';
 import { PostsService } from '../posts/posts.service.js';
 import { CannotReportSelfError, ReportTargetNotFoundError } from './moderation.errors.js';
@@ -13,6 +13,7 @@ async function setup() {
     postsRepo,
     new MediaService(new InMemoryMediaRepository(), new FakeObjectStorage()),
     new EventEmitter2(),
+    new FakeLinkPreviews(),
   );
   const repo = new InMemoryReportsRepository();
   const service = new ReportsService(repo, posts);
