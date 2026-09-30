@@ -54,6 +54,7 @@
     "htmlparser2": "^12.0.0",
     "ipaddr.js": "^2.5.0",
     "jose": "^6.2.12",
+    "mediainfo.js": "^0.3.8",
     "pg": "^8.23.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",

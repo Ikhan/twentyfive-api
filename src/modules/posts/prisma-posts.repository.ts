@@ -11,6 +11,7 @@ import type { LinkPreview } from '../links/link-preview.types.js';
 const AUTHOR = { id: true, username: true, displayName: true, avatarUrl: true, isPrivate: true } as const;
 const DISTRICT = { select: { id: true, name: true, colorFrom: true, colorTo: true } } as const;
 const PHOTOS = { select: { id: true, url: true }, orderBy: { position: 'asc' } } as const;
+const VIDEO = { select: { mediaId: true, url: true, durationSeconds: true, width: true, height: true } } as const;
 
 /** Post fields, plus whether `viewerId` liked or reposted it, and a quoted post with what's needed to check it's visible to them. */
 function selectFor(viewerId: string) {
@@ -23,6 +24,7 @@ function selectFor(viewerId: string) {
     author: { select: AUTHOR },
     district: DISTRICT,
     photos: PHOTOS,
+    video: VIDEO,
     _count: { select: { comments: true, likes: true, reposts: true, quotedBy: true } },
     likes: mine,
     reposts: mine,
@@ -82,9 +84,26 @@ function toQuoted(row: Row, viewerId: string): QuotedPost | null {
 }
 
 function toView(row: Row, viewerId: string): PostRecord {
-  const { district, _count, likes, reposts, isQuote: _isQuote, quotedPost: _quotedPost, linkPreview, ...post } = row;
+  const {
+    district,
+    _count,
+    likes,
+    reposts,
+    isQuote: _isQuote,
+    quotedPost: _quotedPost,
+    linkPreview,
+    video,
+    ...post
+  } = row;
   return {
     ...post,
+    video: video && {
+      id: video.mediaId,
+      url: video.url,
+      durationSeconds: video.durationSeconds,
+      width: video.width,
+      height: video.height,
+    },
     link: (linkPreview as LinkPreview | null) ?? null,
     district: toDistrict(district),
     counts: { comments: _count.comments, likes: _count.likes, reposts: _count.reposts, quotes: _count.quotedBy },
@@ -140,7 +159,7 @@ function after(cursor?: PostCursor): Prisma.PostWhereInput {
 export class PrismaPostsRepository implements PostsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create({ photos, quotedPostId, link, ...post }: NewPost): Promise<PostRecord> {
+  async create({ photos, video, quotedPostId, link, ...post }: NewPost): Promise<PostRecord> {
     try {
       const row = await this.prisma.post.create({
         data: {
@@ -148,6 +167,7 @@ export class PrismaPostsRepository implements PostsRepository {
           ...(link && { linkPreview: { ...link } }),
           ...(quotedPostId && { isQuote: true, quotedPostId }),
           photos: { create: photos.map((p, position) => ({ ...p, position })) },
+          ...(video && { video: { create: video } }),
         },
         select: selectFor(post.authorId),
       });

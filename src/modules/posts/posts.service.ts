@@ -45,11 +45,21 @@ export class PostsService {
   async create(
     authorId: string,
     /** Leave out `districtId` to post to all districts (shown in feeds, on no district page). */
-    input: { body?: string; districtId?: string; audience?: PostAudience; mediaIds?: string[]; quotedPostId?: string },
+    input: {
+      body?: string;
+      districtId?: string;
+      audience?: PostAudience;
+      mediaIds?: string[];
+      /** One POST_VIDEO upload, instead of photos. */
+      videoId?: string;
+      quotedPostId?: string;
+    },
   ): Promise<PostView> {
     const body = input.body?.trim() ?? '';
     const mediaIds = input.mediaIds ?? [];
-    if (!body && mediaIds.length === 0) throw new EmptyPostError();
+    if (!body && mediaIds.length === 0 && !input.videoId) throw new EmptyPostError();
+    if (input.videoId && mediaIds.length > 0)
+      throw new ValidationError('A post can have photos or a video, not both.', { field: 'videoId' });
     if (body.length > MAX_POST_LENGTH)
       throw new ValidationError(`Posts can be up to ${MAX_POST_LENGTH} characters.`, { field: 'body' });
     if (new Set(mediaIds).size > MAX_POST_PHOTOS)
@@ -61,8 +71,9 @@ export class PostsService {
     }
     const quoted = input.quotedPostId ? await this.quotable(input.quotedPostId, authorId) : null;
     const photos = mediaIds.length ? await this.media.claim(authorId, mediaIds, 'POST_PHOTO') : [];
-    // A card for the first link, like Twitter; photos take its place. Usually cached from the composer.
-    const url = photos.length === 0 ? firstLink(body) : null;
+    const [video] = input.videoId ? await this.media.claim(authorId, [input.videoId], 'POST_VIDEO') : [];
+    // A card for the first link, like Twitter; photos or a video take its place. Usually cached from the composer.
+    const url = photos.length === 0 && !video ? firstLink(body) : null;
     const link = url ? await this.links.preview(url) : null;
     const post = await this.posts.create({
       authorId,
@@ -70,6 +81,7 @@ export class PostsService {
       body,
       audience: input.audience ?? 'EVERYONE',
       photos: photos.map((p) => ({ mediaId: p.id, url: p.url })),
+      video: video?.video ? { mediaId: video.id, url: video.url, ...video.video } : null,
       quotedPostId: quoted?.id ?? null,
       link,
     });

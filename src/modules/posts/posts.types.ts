@@ -14,6 +14,15 @@ export interface PostPhotoView {
   url: string;
 }
 
+/** A post's video: where to play it from, its length, and its picture size (for the player's shape). */
+export interface PostVideoView {
+  id: string;
+  url: string;
+  durationSeconds: number;
+  width: number;
+  height: number;
+}
+
 /** A post as stored and filtered by the repository. */
 export interface PostRecord {
   id: string;
@@ -24,6 +33,8 @@ export interface PostRecord {
   /** Null for posts to all districts. */
   district: PostDistrict | null;
   photos: PostPhotoView[];
+  /** At most one, and never with photos. */
+  video: PostVideoView | null;
   counts: PostCounts;
   /** The signed-in viewer's own reactions. */
   viewer: PostViewerState;
@@ -78,6 +89,8 @@ export interface NewPost {
   body: string;
   audience: PostAudience;
   photos: { mediaId: string; url: string }[];
+  /** A verified POST_VIDEO upload (never with photos). */
+  video?: { mediaId: string; url: string; durationSeconds: number; width: number; height: number } | null;
   /** Set for quote posts: the post being quoted. */
   quotedPostId?: string | null;
   /** The card for its first link, if there is one. */

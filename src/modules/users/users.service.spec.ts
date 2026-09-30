@@ -1,5 +1,11 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { FakeObjectStorage, InMemoryMediaRepository, JPEG, PNG } from '../../../test/fakes/media-fakes.js';
+import {
+  FakeObjectStorage,
+  FakeVideoProbe,
+  InMemoryMediaRepository,
+  JPEG,
+  PNG,
+} from '../../../test/fakes/media-fakes.js';
 import { InMemoryUsersRepository, profile } from '../../../test/fakes/users-fakes.js';
 import { InvalidUploadError } from '../media/media.errors.js';
 import { MediaService } from '../media/media.service.js';
@@ -17,7 +23,7 @@ function setup() {
   const emitted: unknown[] = [];
   events.on(DomainEvent.UserPrivacyChanged, (e) => emitted.push(e));
   const storage = new FakeObjectStorage();
-  const media = new MediaService(new InMemoryMediaRepository(), storage);
+  const media = new MediaService(new InMemoryMediaRepository(), storage, new FakeVideoProbe());
   return { repo, events, emitted, storage, media, service: new UsersService(repo, events, media) };
 }
 

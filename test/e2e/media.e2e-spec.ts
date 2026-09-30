@@ -1,4 +1,5 @@
 import type { INestApplication } from '@nestjs/common';
+import { readFileSync } from 'node:fs';
 import request from 'supertest';
 import { OBJECT_STORAGE } from '../../src/modules/media/storage/object-storage.js';
 import { FakeObjectStorage, HTML, JPEG } from '../fakes/media-fakes.js';
@@ -137,6 +138,39 @@ describe('Media and avatars (e2e)', () => {
       .put('/api/v1/users/me/avatar')
       .set('Authorization', kasun.auth)
       .send({ mediaId: ticket.mediaId })
+      .expect(400);
+  });
+  it('uploads a video (checking its length from the file) and posts it', async () => {
+    const upload = async (file: string) => {
+      const bytes = new Uint8Array(readFileSync(`test/fixtures/videos/${file}`));
+      const ticket = await reserve(kasun, { purpose: 'POST_VIDEO', contentType: 'video/mp4', sizeBytes: bytes.length });
+      expect(ticket.upload.fields.key).toMatch(/^post_video\/.+\.mp4$/);
+      storage.put(ticket.upload.fields.key, bytes);
+      return http().post(`/api/v1/media/${ticket.mediaId}/complete`).set('Authorization', kasun.auth);
+    };
+
+    const done = await upload('short.mp4');
+    expect(done.status).toBe(200);
+    expect(done.body.data).toMatchObject({
+      contentType: 'video/mp4',
+      video: { durationSeconds: 2, width: 32, height: 18 },
+    });
+    const post = await http()
+      .post('/api/v1/posts')
+      .set('Authorization', kasun.auth)
+      .send({ body: 'Perahera clip', videoId: done.body.data.id })
+      .expect(201);
+    expect(post.body.data.video).toMatchObject({ id: done.body.data.id, durationSeconds: 2, width: 32, height: 18 });
+    const feed = await http().get('/api/v1/feed').set('Authorization', arun.auth).expect(200);
+    expect(feed.body.data[0].video.url).toMatch(/post_video/);
+
+    const long = await upload('eleven-minutes.mp4');
+    expect(long.status).toBe(400);
+    expect(long.body.error.message).toBe('Videos can be up to 10 minutes long.');
+    await http()
+      .post('/api/v1/media/uploads')
+      .set('Authorization', kasun.auth)
+      .send({ purpose: 'POST_VIDEO', contentType: 'video/mp4', sizeBytes: 600 * 1024 * 1024 })
       .expect(400);
   });
 });

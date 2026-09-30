@@ -1,5 +1,5 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { FakeObjectStorage, InMemoryMediaRepository } from '../../../test/fakes/media-fakes.js';
+import { FakeObjectStorage, FakeVideoProbe, InMemoryMediaRepository } from '../../../test/fakes/media-fakes.js';
 import { InMemoryReportsRepository } from '../../../test/fakes/moderation-fakes.js';
 import { FakeLinkPreviews, InMemoryPostsRepository } from '../../../test/fakes/posts-fakes.js';
 import { MediaService } from '../media/media.service.js';
@@ -11,7 +11,7 @@ async function setup() {
   const postsRepo = new InMemoryPostsRepository();
   const posts = new PostsService(
     postsRepo,
-    new MediaService(new InMemoryMediaRepository(), new FakeObjectStorage()),
+    new MediaService(new InMemoryMediaRepository(), new FakeObjectStorage(), new FakeVideoProbe()),
     new EventEmitter2(),
     new FakeLinkPreviews(),
   );

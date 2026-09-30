@@ -1,5 +1,5 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { FakeObjectStorage, InMemoryMediaRepository, JPEG } from '../../../test/fakes/media-fakes.js';
+import { FakeObjectStorage, FakeVideoProbe, InMemoryMediaRepository, JPEG } from '../../../test/fakes/media-fakes.js';
 import { FakeLinkPreviews, InMemoryPostsRepository } from '../../../test/fakes/posts-fakes.js';
 import { NotFoundError, ValidationError } from '../../common/errors/app-error.js';
 import { DomainEvent } from '../../common/events/domain-events.js';
@@ -17,7 +17,8 @@ import { PostsService } from './posts.service.js';
 function setup() {
   const repo = new InMemoryPostsRepository();
   const storage = new FakeObjectStorage();
-  const media = new MediaService(new InMemoryMediaRepository(), storage);
+  const videos = new FakeVideoProbe();
+  const media = new MediaService(new InMemoryMediaRepository(), storage, videos);
   const events = new EventEmitter2();
   const quoted: unknown[] = [];
   events.on(DomainEvent.PostQuoted, (e) => quoted.push(e));
@@ -32,7 +33,16 @@ function setup() {
   });
   const mentioned: unknown[] = [];
   events.on(DomainEvent.UsersMentioned, (e) => mentioned.push(e));
-  return { repo, storage, media, quoted, mentioned, links, service: new PostsService(repo, media, events, links) };
+  return {
+    repo,
+    storage,
+    media,
+    videos,
+    quoted,
+    mentioned,
+    links,
+    service: new PostsService(repo, media, events, links),
+  };
 }
 
 async function readyPhoto(ctx: ReturnType<typeof setup>, owner = 'u-kasun') {
@@ -312,6 +322,59 @@ describe('PostsService', () => {
       });
       expect(withPhoto.link).toBeNull();
       expect(ctx.links.asked).toEqual(['https://nothing.lk/']);
+    });
+  });
+
+  describe('videos', () => {
+    /** A verified 2-minute video upload (the fake probe knows it by its size). */
+    async function readyVideo(ctx: ReturnType<typeof setup>, owner = 'u-kasun', seconds = 120) {
+      const size = 3000 + ctx.storage.presigned.length;
+      ctx.videos.details.set(size, { durationSeconds: seconds, width: 1920, height: 1080 });
+      const ticket = await ctx.media.createUpload(owner, {
+        purpose: 'POST_VIDEO',
+        contentType: 'video/mp4',
+        sizeBytes: size,
+      });
+      // "ftyp" at byte 4: an MP4.
+      ctx.storage.put(ctx.storage.presigned.at(-1)!.key, new Uint8Array([0, 0, 0, 24, 0x66, 0x74, 0x79, 0x70]), size);
+      await ctx.media.complete(owner, ticket.mediaId);
+      return ticket.mediaId;
+    }
+
+    it('posts a video, with or without text, and shows it with its length and shape', async () => {
+      const ctx = setup();
+      const videoId = await readyVideo(ctx);
+      const post = await ctx.service.create('u-kasun', { videoId });
+      expect(post.video).toEqual({
+        id: videoId,
+        url: expect.stringMatching(/^https:\/\/cdn\.test\/post_video\//),
+        durationSeconds: 120,
+        width: 1920,
+        height: 1080,
+      });
+      expect(post.photos).toEqual([]);
+      await expect(ctx.service.get(post.id, 'u-arun')).resolves.toMatchObject({ video: { id: videoId } });
+    });
+
+    it('refuses photos and a video together, someone else’s video, and using one twice', async () => {
+      const ctx = setup();
+      const videoId = await readyVideo(ctx);
+      const photo = await readyPhoto(ctx);
+      await expect(ctx.service.create('u-kasun', { videoId, mediaIds: [photo] })).rejects.toThrow(
+        'A post can have photos or a video, not both.',
+      );
+      await expect(ctx.service.create('u-arun', { videoId })).rejects.toThrow(
+        'That video is missing or still uploading.',
+      );
+      await expect(ctx.service.create('u-kasun', { videoId: photo })).rejects.toBeInstanceOf(ValidationError);
+    });
+
+    it('has no link card when there’s a video', async () => {
+      const ctx = setup();
+      const videoId = await readyVideo(ctx);
+      const post = await ctx.service.create('u-kasun', { body: 'https://www.nytimes.com/international/', videoId });
+      expect(post.link).toBeNull();
+      expect(ctx.links.asked).toEqual([]);
     });
   });
 });

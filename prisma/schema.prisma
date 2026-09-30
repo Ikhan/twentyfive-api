@@ -163,6 +163,7 @@ enum MediaPurpose {
   POST_PHOTO
   AVATAR
   HEADER
+  POST_VIDEO
 }
 
 enum MediaStatus {
@@ -174,18 +175,23 @@ enum MediaStatus {
 
 /// A photo uploaded straight to object storage (S3) by the browser.
 model Media {
-  id          String       @id @default(uuid()) @db.Uuid
-  ownerId     String       @map("owner_id") @db.Uuid
-  owner       User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  purpose     MediaPurpose
-  status      MediaStatus  @default(PENDING)
+  id              String       @id @default(uuid()) @db.Uuid
+  ownerId         String       @map("owner_id") @db.Uuid
+  owner           User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  purpose         MediaPurpose
+  status          MediaStatus  @default(PENDING)
   /// Object key in the bucket, e.g. post_photo/<owner>/<id>.jpg
-  key         String       @unique
-  contentType String       @map("content_type")
-  sizeBytes   Int?         @map("size_bytes")
-  createdAt   DateTime     @default(now()) @map("created_at")
-  readyAt     DateTime?    @map("ready_at")
-  postPhoto   PostPhoto?
+  key             String       @unique
+  contentType     String       @map("content_type")
+  sizeBytes       Int?         @map("size_bytes")
+  /// Videos only, read from the file when it's verified.
+  durationSeconds Float?       @map("duration_seconds")
+  width           Int?
+  height          Int?
+  createdAt       DateTime     @default(now()) @map("created_at")
+  readyAt         DateTime?    @map("ready_at")
+  postPhoto       PostPhoto?
+  postVideo       PostVideo?
 
   @@index([ownerId, status])
   @@map("media")
@@ -220,6 +226,8 @@ model Post {
   linkPreview  Json?        @map("link_preview")
 
   photos        PostPhoto[]
+  /// At most one, and never with photos.
+  video         PostVideo?
   comments      Comment[]
   likes         PostLike[]
   reposts       Repost[]
@@ -244,6 +252,20 @@ model PostPhoto {
 
   @@index([postId, position])
   @@map("post_photos")
+}
+
+/// A post's video (one per post). Each upload can be used by one post only.
+model PostVideo {
+  postId          String @id @map("post_id") @db.Uuid
+  post            Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  mediaId         String @unique @map("media_id") @db.Uuid
+  media           Media  @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  url             String
+  durationSeconds Float  @map("duration_seconds")
+  width           Int
+  height          Int
+
+  @@map("post_videos")
 }
 
 model Comment {
