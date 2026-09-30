@@ -65,4 +65,20 @@ describe('NotificationsListener', () => {
     expect(log.mock.calls[0]![0]).toContain('post.reposted');
     log.mockRestore();
   });
+
+  it('notifies each person mentioned, pointing at the post (and comment)', async () => {
+    const { service, listener } = setup();
+    await listener.onUsersMentioned({
+      mentionerId: 'arun',
+      recipientIds: ['kasun', 'sachini'],
+      postId: 'p1',
+      commentId: 'c1',
+      excerpt: '@kasun @sachini hi',
+    });
+    const mention = { actorId: 'arun', type: 'MENTION', postId: 'p1', commentId: 'c1', excerpt: '@kasun @sachini hi' };
+    expect(service.notify.mock.calls).toEqual([
+      [{ ...mention, recipientId: 'kasun' }],
+      [{ ...mention, recipientId: 'sachini' }],
+    ]);
+  });
 });

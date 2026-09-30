@@ -90,4 +90,32 @@ describe('CommentsService', () => {
     expect(repo.comments).toEqual([]);
     await expect(service.remove('u-arun', a.id)).rejects.toThrow(CommentNotFoundError);
   });
+
+  it('tells people mentioned in a comment, except the post’s author (who gets the comment)', async () => {
+    const posts = new InMemoryPostsRepository();
+    const events = new EventEmitter2();
+    const mentioned: unknown[] = [];
+    events.on(DomainEvent.UsersMentioned, (e) => mentioned.push(e));
+    const postsService = new PostsService(
+      posts,
+      new MediaService(new InMemoryMediaRepository(), new FakeObjectStorage()),
+      events,
+    );
+    const repo = new InMemoryCommentsRepository((id) => posts.posts.find((p) => p.id === id)!.author.id);
+    const service = new CommentsService(repo, postsService, events);
+    const post = await postsService.create('u-kasun', { body: 'Perahera tonight' });
+    const comment = await service.add('u-arun', post.id, '@kasun @sachini see you there, @nobody');
+    expect(comment.mentions).toEqual(['kasun', 'sachini']);
+    expect(mentioned).toEqual([
+      {
+        mentionerId: 'u-arun',
+        recipientIds: ['u-sachini'],
+        postId: post.id,
+        commentId: comment.id,
+        excerpt: '@kasun @sachini see you there, @nobody',
+      },
+    ]);
+    const listed = await service.list('u-kasun', post.id, { limit: 5 });
+    expect(listed.items[0]!.mentions).toEqual(['kasun', 'sachini']);
+  });
 });

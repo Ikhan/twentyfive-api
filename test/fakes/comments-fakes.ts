@@ -1,16 +1,16 @@
 import { randomUUID } from 'node:crypto';
 import type { CommentsRepository } from '../../src/modules/comments/comments.repository.js';
-import type { CommentCursor, CommentOwnership, CommentView } from '../../src/modules/comments/comments.types.js';
+import type { CommentCursor, CommentOwnership, CommentRecord } from '../../src/modules/comments/comments.types.js';
 
 export class InMemoryCommentsRepository implements CommentsRepository {
-  readonly comments: (CommentView & { postAuthorId: string })[] = [];
+  readonly comments: (CommentRecord & { postAuthorId: string })[] = [];
   private clock = Date.parse('2026-09-01T00:00:00Z');
 
   /** Post authors, so ownership checks work without a posts store. */
   constructor(private readonly postAuthorOf: (postId: string) => string = () => 'u-kasun') {}
 
-  async create({ postId, authorId, body }: { postId: string; authorId: string; body: string }): Promise<CommentView> {
-    const view: CommentView = {
+  async create({ postId, authorId, body }: { postId: string; authorId: string; body: string }): Promise<CommentRecord> {
+    const view: CommentRecord = {
       id: randomUUID(),
       postId,
       body,
@@ -25,8 +25,8 @@ export class InMemoryCommentsRepository implements CommentsRepository {
     postId: string,
     _viewerId: string,
     { after, take }: { after?: CommentCursor; take: number },
-  ): Promise<CommentView[]> {
-    const key = (c: CommentView) => `${c.createdAt.toISOString()}|${c.id}`;
+  ): Promise<CommentRecord[]> {
+    const key = (c: CommentRecord) => `${c.createdAt.toISOString()}|${c.id}`;
     return this.comments
       .filter((c) => c.postId === postId && (!after || key(c) > `${after.t}|${after.id}`))
       .toSorted((a, b) => key(a).localeCompare(key(b)))

@@ -1,6 +1,7 @@
 import type { UserSummary } from '../users/users.types.js';
 
-export type NotificationType = 'FOLLOW' | 'FOLLOW_REQUEST' | 'FOLLOW_ACCEPTED' | 'COMMENT' | 'REPOST' | 'QUOTE';
+export type NotificationType =
+  'FOLLOW' | 'FOLLOW_REQUEST' | 'FOLLOW_ACCEPTED' | 'COMMENT' | 'REPOST' | 'QUOTE' | 'MENTION';
 
 export interface NewNotification {
   recipientId: string;

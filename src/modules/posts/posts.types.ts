@@ -13,7 +13,8 @@ export interface PostPhotoView {
   url: string;
 }
 
-export interface PostView {
+/** A post as stored and filtered by the repository. */
+export interface PostRecord {
   id: string;
   body: string;
   audience: PostAudience;
@@ -27,6 +28,12 @@ export interface PostView {
   viewer: PostViewerState;
   /** For quote posts, the quoted post (one level deep); null for ordinary posts. */
   quoted: QuotedPost | null;
+}
+
+/** A post as the API returns it. */
+export interface PostView extends PostRecord {
+  /** @handles in the post (or the post it quotes) that belong to real accounts, lowercase: link these. */
+  mentions: string[];
 }
 
 /** The post inside a quote: its content, or unavailable if it was deleted or the viewer can't see it. */

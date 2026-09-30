@@ -4,10 +4,11 @@ import type { Paginated } from '../../common/api-response.js';
 import { ValidationError } from '../../common/errors/app-error.js';
 import { DomainEvent, type CommentCreatedEvent } from '../../common/events/domain-events.js';
 import { decodeCursor, toPage } from '../../common/pagination/cursor.js';
+import { mentionedUsernames } from '../../common/text/mentions.js';
 import { PostsService } from '../posts/posts.service.js';
 import { CannotDeleteCommentError, CommentNotFoundError } from './comments.errors.js';
 import { COMMENTS_REPOSITORY, type CommentsRepository } from './comments.repository.js';
-import type { CommentCursor, CommentView } from './comments.types.js';
+import type { CommentCursor, CommentRecord, CommentView } from './comments.types.js';
 
 export const MAX_COMMENT_LENGTH = 500;
 const EXCERPT_LENGTH = 120;
@@ -35,7 +36,7 @@ export class CommentsService {
   ): Promise<Paginated<CommentView>> {
     await this.posts.get(postId, viewerId);
     const after = decodeCursor(page.cursor, isCursor);
-    const rows = await this.comments.list(postId, viewerId, { after, take: page.limit + 1 });
+    const rows = await this.withMentions(await this.comments.list(postId, viewerId, { after, take: page.limit + 1 }));
     return toPage(
       rows,
       page.limit,
@@ -58,7 +59,14 @@ export class CommentsService {
       commenterId: authorId,
       excerpt: body.slice(0, EXCERPT_LENGTH),
     } satisfies CommentCreatedEvent);
-    return comment;
+    // The post's author already hears about it as a comment.
+    await this.posts.announceMentions(authorId, postId, body, { skip: [post.author.id], commentId: comment.id });
+    return (await this.withMentions([comment]))[0]!;
+  }
+
+  private async withMentions(comments: CommentRecord[]): Promise<CommentView[]> {
+    const known = await this.posts.existingMentions(comments.map((c) => c.body));
+    return comments.map((c) => ({ ...c, mentions: mentionedUsernames(c.body).filter((u) => known.has(u)) }));
   }
 
   /** The comment's author or the post's author may delete. */

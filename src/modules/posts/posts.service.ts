@@ -2,8 +2,9 @@ import { Inject, Injectable } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { Paginated } from '../../common/api-response.js';
 import { NotFoundError, ValidationError } from '../../common/errors/app-error.js';
-import { DomainEvent, type PostQuotedEvent } from '../../common/events/domain-events.js';
+import { DomainEvent, type PostQuotedEvent, type UsersMentionedEvent } from '../../common/events/domain-events.js';
 import { decodeCursor, toPage } from '../../common/pagination/cursor.js';
+import { mentionedUsernames } from '../../common/text/mentions.js';
 import { MediaService } from '../media/media.service.js';
 import {
   CannotQuoteError,
@@ -13,11 +14,13 @@ import {
   PrivateAccountError,
 } from './posts.errors.js';
 import { POSTS_REPOSITORY, type PostsRepository } from './posts.repository.js';
-import type { PostAudience, PostCursor, PostScope, PostView } from './posts.types.js';
+import type { PostAudience, PostCursor, PostRecord, PostScope, PostView } from './posts.types.js';
 
 export const MAX_POST_LENGTH = 1000;
 export const MAX_POST_PHOTOS = 4;
 const QUOTE_EXCERPT_LENGTH = 120;
+/** At most this many people are notified per post or comment, so a mention list can't spam. */
+export const MAX_MENTION_NOTIFICATIONS = 10;
 
 const isCursor = (v: unknown): v is PostCursor =>
   typeof v === 'object' &&
@@ -72,11 +75,61 @@ export class PostsService {
         excerpt: body.slice(0, QUOTE_EXCERPT_LENGTH),
       } satisfies PostQuotedEvent);
     }
-    return post;
+    // The quoted author already hears about it as a quote.
+    await this.announceMentions(authorId, post.id, body, { skip: quoted ? [quoted.author.id] : [] });
+    return this.withMentions(post);
+  }
+
+  /**
+   * Tells people @mentioned in a new post or comment: real accounts that can see the post, up to
+   * MAX_MENTION_NOTIFICATIONS, except the author and anyone in `skip`.
+   */
+  async announceMentions(
+    mentionerId: string,
+    postId: string,
+    text: string,
+    { skip = [], commentId }: { skip?: string[]; commentId?: string } = {},
+  ): Promise<void> {
+    const usernames = mentionedUsernames(text).slice(0, MAX_MENTION_NOTIFICATIONS);
+    if (usernames.length === 0) return;
+    const people = (await this.posts.findUsersByUsernames(usernames))
+      .filter((u) => u.id !== mentionerId && !skip.includes(u.id))
+      .sort((a, b) => usernames.indexOf(a.username) - usernames.indexOf(b.username));
+    const canSee = await Promise.all(people.map(async (u) => (await this.posts.findVisible(postId, u.id)) !== null));
+    const recipientIds = people.filter((_, i) => canSee[i]).map((u) => u.id);
+    if (recipientIds.length === 0) return;
+    this.events.emit(DomainEvent.UsersMentioned, {
+      mentionerId,
+      recipientIds,
+      postId,
+      commentId,
+      excerpt: text.slice(0, QUOTE_EXCERPT_LENGTH),
+    } satisfies UsersMentionedEvent);
+  }
+
+  /** The @handles in these texts that belong to real accounts (for links). */
+  async existingMentions(texts: string[]): Promise<Set<string>> {
+    const usernames = [...new Set(texts.flatMap(mentionedUsernames))];
+    if (usernames.length === 0) return new Set();
+    return new Set((await this.posts.findUsersByUsernames(usernames)).map((u) => u.username));
+  }
+
+  private async withMentions(post: PostRecord): Promise<PostView> {
+    return (await this.withMentionsAll([post]))[0]!;
+  }
+
+  /** One lookup for a whole page of posts. */
+  private async withMentionsAll(posts: PostRecord[]): Promise<PostView[]> {
+    const texts = (p: PostRecord) => [p.body, p.quoted?.available ? p.quoted.body : ''];
+    const known = await this.existingMentions(posts.flatMap(texts));
+    return posts.map((p) => ({
+      ...p,
+      mentions: [...new Set(texts(p).flatMap(mentionedUsernames))].filter((u) => known.has(u)),
+    }));
   }
 
   /** A post you can quote: one you can see, and public (like reposts: quoting shares it further). */
-  private async quotable(postId: string, quoterId: string): Promise<PostView> {
+  private async quotable(postId: string, quoterId: string): Promise<PostRecord> {
     const post = await this.posts.findVisible(postId, quoterId);
     if (!post) throw new PostNotFoundError();
     if (post.audience !== 'EVERYONE' || post.author.isPrivate) throw new CannotQuoteError();
@@ -86,7 +139,7 @@ export class PostsService {
   async get(postId: string, viewerId: string): Promise<PostView> {
     const post = await this.posts.findVisible(postId, viewerId);
     if (!post) throw new PostNotFoundError();
-    return post;
+    return this.withMentions(post);
   }
 
   async delete(postId: string, userId: string): Promise<void> {
@@ -118,7 +171,7 @@ export class PostsService {
 
   private async list(viewerId: string, scope: PostScope, page: PageInput): Promise<Paginated<PostView>> {
     const after = decodeCursor(page.cursor, isCursor);
-    const rows = await this.posts.list(viewerId, scope, { after, take: page.limit + 1 });
+    const rows = await this.withMentionsAll(await this.posts.list(viewerId, scope, { after, take: page.limit + 1 }));
     return toPage(
       rows,
       page.limit,
