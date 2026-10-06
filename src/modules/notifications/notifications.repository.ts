@@ -1,4 +1,10 @@
-import type { NewNotification, NotificationCursor, NotificationType, NotificationView } from './notifications.types.js';
+import type {
+  DistrictPost,
+  NewNotification,
+  NotificationCursor,
+  NotificationType,
+  NotificationView,
+} from './notifications.types.js';
 
 export interface NotificationKey {
   recipientId: string;
@@ -9,6 +15,11 @@ export interface NotificationKey {
 
 export interface NotificationsRepository {
   create(notification: NewNotification): Promise<void>;
+  /**
+   * Tells the district's followers who have the bell on, except the author and anyone across a block.
+   * Each recipient keeps one unread row per district: a later post updates it rather than adding one.
+   */
+  notifyDistrictFollowers(post: DistrictPost): Promise<void>;
   /** Whether an unread notification with the same key exists. */
   hasUnread(key: NotificationKey): Promise<boolean>;
   /** Deletes every notification with this key (read or not). */

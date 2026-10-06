@@ -9,11 +9,14 @@ export interface DistrictsRepository {
   followerCount(districtId: string): Promise<number>;
   /** Follower count per district (only districts with followers), and whether `viewerId` follows each. */
   followStates(viewerId?: string): Promise<Map<string, FollowState>>;
-  isFollowing(userId: string, districtId: string): Promise<boolean>;
-  /** Idempotent. */
+  /** The user's follow of this district, or null when they don't follow it. */
+  findFollow(userId: string, districtId: string): Promise<{ notify: boolean } | null>;
+  /** Idempotent; following again keeps the bell as it was. */
   follow(userId: string, districtId: string): Promise<void>;
   /** Idempotent. */
   unfollow(userId: string, districtId: string): Promise<void>;
+  /** Turns the follower's post notifications on or off; false when they don't follow the district. */
+  setNotify(userId: string, districtId: string, notify: boolean): Promise<boolean>;
   /**
    * Public activity per district since `since` (only districts with some): posts there, plus comments,
    * likes, reposts and quotes on them, plus new followers. Each counts less as it ages (`halfLifeHours`).

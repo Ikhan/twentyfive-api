@@ -7,11 +7,19 @@ function setup() {
     notify: vi.fn().mockResolvedValue(undefined),
     clearFollowRequest: vi.fn().mockResolvedValue(undefined),
     clearBetween: vi.fn().mockResolvedValue(undefined),
+    notifyDistrictFollowers: vi.fn().mockResolvedValue(undefined),
   };
   return { service, listener: new NotificationsListener(service as unknown as NotificationsService) };
 }
 
 describe('NotificationsListener', () => {
+  it('tells district followers with the bell on about new posts there', async () => {
+    const { service, listener } = setup();
+    const e = { postId: 'p1', authorId: 'kasun', districtId: 'kandy', excerpt: 'Perahera tonight' };
+    await listener.onDistrictPostCreated(e);
+    expect(service.notifyDistrictFollowers).toHaveBeenCalledWith(e);
+  });
+
   it('turns follows into follow or follow-request notifications', async () => {
     const { service, listener } = setup();
     await listener.onFollowCreated({ followerId: 'arun', followeeId: 'kasun', status: 'ACCEPTED' });

@@ -30,10 +30,14 @@ describe('PrismaDistrictsRepository (integration)', () => {
     await districts.follow(b, 'kandy');
     await districts.follow(b, 'galle');
     const states = await districts.followStates(a);
-    expect(states.get('kandy')).toEqual({ followerCount: 2, followedByMe: true });
-    expect(states.get('galle')).toEqual({ followerCount: 1, followedByMe: false });
+    expect(states.get('kandy')).toEqual({ followerCount: 2, followedByMe: true, notifying: false });
+    expect(states.get('galle')).toEqual({ followerCount: 1, followedByMe: false, notifying: false });
     expect(states.get('jaffna')).toBeUndefined(); // no followers: callers default to 0
-    expect((await districts.followStates()).get('kandy')).toEqual({ followerCount: 2, followedByMe: false });
+    expect((await districts.followStates()).get('kandy')).toEqual({
+      followerCount: 2,
+      followedByMe: false,
+      notifying: false,
+    });
   });
 
   it('finds one district', async () => {
@@ -52,11 +56,24 @@ describe('PrismaDistrictsRepository (integration)', () => {
     await districts.follow(a.id, 'kandy');
     await districts.follow(b.id, 'kandy');
     await expect(districts.followerCount('kandy')).resolves.toBe(2);
-    await expect(districts.isFollowing(a.id, 'kandy')).resolves.toBe(true);
+    await expect(districts.findFollow(a.id, 'kandy')).resolves.toEqual({ notify: false });
     await districts.unfollow(a.id, 'kandy');
     await districts.unfollow(a.id, 'kandy');
-    await expect(districts.isFollowing(a.id, 'kandy')).resolves.toBe(false);
+    await expect(districts.findFollow(a.id, 'kandy')).resolves.toBeNull();
     await expect(districts.followerCount('kandy')).resolves.toBe(1);
+  });
+
+  it('turns post notifications on and off only for followers', async () => {
+    const a = await user('a');
+    await expect(districts.setNotify(a.id, 'kandy', true)).resolves.toBe(false);
+    await districts.follow(a.id, 'kandy');
+    await expect(districts.setNotify(a.id, 'kandy', true)).resolves.toBe(true);
+    await districts.follow(a.id, 'kandy'); // following again keeps the bell
+    await expect(districts.findFollow(a.id, 'kandy')).resolves.toEqual({ notify: true });
+    const states = await districts.followStates(a.id);
+    expect(states.get('kandy')).toEqual({ followerCount: 1, followedByMe: true, notifying: true });
+    await expect(districts.setNotify(a.id, 'kandy', false)).resolves.toBe(true);
+    await expect(districts.findFollow(a.id, 'kandy')).resolves.toEqual({ notify: false });
   });
 
   it('lists onboarded residents in username order, paged by username', async () => {

@@ -4,7 +4,7 @@ import { decodeCursor, toPage } from '../../common/pagination/cursor.js';
 import { BLOCK_CHECKER, type BlockChecker } from '../moderation/block-checker.js';
 import { NotificationNotFoundError } from './notifications.errors.js';
 import { NOTIFICATIONS_REPOSITORY, type NotificationsRepository } from './notifications.repository.js';
-import type { NewNotification, NotificationCursor, NotificationView } from './notifications.types.js';
+import type { DistrictPost, NewNotification, NotificationCursor, NotificationView } from './notifications.types.js';
 
 /** Types that say "X did this"; repeating them while unread adds nothing (e.g. follow, unfollow, follow). */
 const DEDUPLICATED = new Set<NewNotification['type']>(['FOLLOW', 'FOLLOW_REQUEST', 'FOLLOW_ACCEPTED', 'REPOST']);
@@ -29,6 +29,11 @@ export class NotificationsService {
     if (await this.blocks.isBlockedBetween(notification.recipientId, notification.actorId)) return;
     if (DEDUPLICATED.has(notification.type) && (await this.notifications.hasUnread(notification))) return;
     await this.notifications.create(notification);
+  }
+
+  /** "New posts in Kandy" for its followers with the bell on (blocks are checked in the repository). */
+  notifyDistrictFollowers(post: DistrictPost): Promise<void> {
+    return this.notifications.notifyDistrictFollowers(post);
   }
 
   /** A request was answered: the "wants to follow you" notification is no longer actionable. */

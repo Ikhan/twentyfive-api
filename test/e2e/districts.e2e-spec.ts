@@ -82,20 +82,20 @@ describe('Districts (e2e)', () => {
     });
     await http().put('/api/v1/districts/kandy/follow').set('Authorization', kasun.auth).expect(200);
     const signedIn = await http().get('/api/v1/districts/kandy').set('Authorization', kasun.auth).expect(200);
-    expect(signedIn.body.data).toMatchObject({ followerCount: 1, followedByMe: true });
+    expect(signedIn.body.data).toMatchObject({ followerCount: 1, followedByMe: true, notifying: false });
     await http().get('/api/v1/districts/atlantis').expect(404);
   });
 
   it('follows and unfollows (sign-in required)', async () => {
     await http().put('/api/v1/districts/kandy/follow').expect(401);
     const followed = await http().put('/api/v1/districts/kandy/follow').set('Authorization', kasun.auth).expect(200);
-    expect(followed.body.data).toEqual({ followerCount: 1, followedByMe: true });
+    expect(followed.body.data).toEqual({ followerCount: 1, followedByMe: true, notifying: false });
     await http().put('/api/v1/districts/kandy/follow').set('Authorization', kasun.auth).expect(200);
     const unfollowed = await http()
       .delete('/api/v1/districts/kandy/follow')
       .set('Authorization', kasun.auth)
       .expect(200);
-    expect(unfollowed.body.data).toEqual({ followerCount: 0, followedByMe: false });
+    expect(unfollowed.body.data).toEqual({ followerCount: 0, followedByMe: false, notifying: false });
   });
 
   it('pages through the people from a district', async () => {

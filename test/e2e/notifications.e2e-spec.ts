@@ -59,6 +59,36 @@ describe('Notifications (e2e)', () => {
     expect(await inbox(arun)).toEqual([]);
   });
 
+  it('groups new posts in a district for followers who turned its bell on', async () => {
+    const districtApi = (method: 'put' | 'delete', path: string) =>
+      http()[method](`/api/v1/districts/kandy/${path}`).set('Authorization', kasun.auth);
+    await districtApi('put', 'notifications').expect(409); // follow first
+    await districtApi('put', 'follow').expect(200);
+    const on = await districtApi('put', 'notifications').expect(200);
+    expect(on.body.data).toMatchObject({ followedByMe: true, notifying: true });
+
+    const post = (body: string, extra: object = {}) =>
+      http()
+        .post('/api/v1/posts')
+        .set('Authorization', arun.auth)
+        .send({ body, districtId: 'kandy', ...extra });
+    await post('Perahera tonight');
+    await post('Friends only', { audience: 'FOLLOWERS' });
+    await post('Traffic near the lake');
+    await eventually(kasun, (n) =>
+      expect(n).toMatchObject([
+        { type: 'DISTRICT_POST', actor: { username: 'arun' }, excerpt: 'Traffic near the lake', postCount: 2 },
+      ]),
+    );
+    const [group] = await inbox(kasun);
+    expect(group).toMatchObject({ district: { id: 'kandy', name: 'Kandy' } });
+
+    await districtApi('delete', 'notifications').expect(200);
+    await post('Quiet now');
+    await new Promise((r) => setTimeout(r, 200));
+    expect((await inbox(kasun)).map((n) => n.excerpt)).toEqual(['Traffic near the lake']);
+  });
+
   it('handles follow requests end to end', async () => {
     await http().put('/api/v1/users/sachini/follow').set('Authorization', arun.auth).expect(200);
     await eventually(sachini, (n) => expect(n.map((x) => x.type)).toEqual(['FOLLOW_REQUEST']));

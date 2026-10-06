@@ -4,12 +4,13 @@ import type {
   NotificationsRepository,
 } from '../../src/modules/notifications/notifications.repository.js';
 import type {
+  DistrictPost,
   NewNotification,
   NotificationCursor,
   NotificationView,
 } from '../../src/modules/notifications/notifications.types.js';
 
-type Stored = NewNotification & { id: string; read: boolean; createdAt: Date };
+type Stored = NewNotification & { id: string; read: boolean; createdAt: Date; districtId?: string; postCount?: number };
 
 export class InMemoryNotificationsRepository implements NotificationsRepository {
   stored: Stored[] = [];
@@ -20,6 +21,22 @@ export class InMemoryNotificationsRepository implements NotificationsRepository 
 
   async create(notification: NewNotification): Promise<void> {
     this.stored.push({ ...notification, id: randomUUID(), read: false, createdAt: new Date((this.clock += 60_000)) });
+  }
+
+  /** Who follows each district with the bell on (the real repository reads district_follows). */
+  readonly districtBells = new Map<string, string[]>();
+
+  async notifyDistrictFollowers({ districtId, authorId, postId, excerpt }: DistrictPost): Promise<void> {
+    for (const recipientId of (this.districtBells.get(districtId) ?? []).filter((id) => id !== authorId)) {
+      const open = this.stored.find((n) => n.recipientId === recipientId && n.districtId === districtId && !n.read);
+      const latest = { actorId: authorId, postId, excerpt, createdAt: new Date((this.clock += 60_000)) };
+      this.stored = open
+        ? this.stored.map((n) => (n === open ? { ...n, ...latest, postCount: (n.postCount ?? 1) + 1 } : n))
+        : [
+            ...this.stored,
+            { ...latest, recipientId, type: 'DISTRICT_POST', districtId, postCount: 1, id: randomUUID(), read: false },
+          ];
+    }
   }
 
   async hasUnread(key: NotificationKey): Promise<boolean> {
@@ -49,6 +66,8 @@ export class InMemoryNotificationsRepository implements NotificationsRepository 
         postId: n.postId ?? null,
         commentId: n.commentId ?? null,
         excerpt: n.excerpt ?? null,
+        district: n.districtId ? { id: n.districtId, name: n.districtId } : null,
+        postCount: n.postCount ?? 1,
         read: n.read,
         createdAt: n.createdAt,
       }));

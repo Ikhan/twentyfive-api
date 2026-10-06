@@ -20,6 +20,8 @@ export const DomainEvent = {
   UsersMentioned: 'users.mentioned',
   /** Someone blocked another user (first time only). */
   UserBlocked: 'user.blocked',
+  /** A public post was made in a district (for followers who turned its bell on). */
+  DistrictPostCreated: 'district-post.created',
 } as const;
 
 export interface UserPrivacyChangedEvent {
@@ -66,6 +68,13 @@ export interface PostQuotedEvent {
   quotedPostId: string;
   quotedAuthorId: string;
   quoterId: string;
+  excerpt: string;
+}
+
+export interface DistrictPostCreatedEvent {
+  postId: string;
+  authorId: string;
+  districtId: string;
   excerpt: string;
 }
 
