@@ -3,6 +3,7 @@ import { OnEvent } from '@nestjs/event-emitter';
 import {
   DomainEvent,
   type CommentCreatedEvent,
+  type DistrictPostCreatedEvent,
   type FollowAcceptedEvent,
   type FollowCreatedEvent,
   type PostQuotedEvent,
@@ -97,6 +98,11 @@ export class NotificationsListener {
         });
       }
     });
+  }
+
+  @OnEvent(DomainEvent.DistrictPostCreated, { promisify: true })
+  onDistrictPostCreated(e: DistrictPostCreatedEvent): Promise<void> {
+    return this.safely(DomainEvent.DistrictPostCreated, () => this.notifications.notifyDistrictFollowers(e));
   }
 
   @OnEvent(DomainEvent.UserBlocked, { promisify: true })

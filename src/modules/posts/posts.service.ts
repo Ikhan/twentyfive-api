@@ -2,7 +2,12 @@ import { Inject, Injectable } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { Paginated } from '../../common/api-response.js';
 import { NotFoundError, ValidationError } from '../../common/errors/app-error.js';
-import { DomainEvent, type PostQuotedEvent, type UsersMentionedEvent } from '../../common/events/domain-events.js';
+import {
+  DomainEvent,
+  type DistrictPostCreatedEvent,
+  type PostQuotedEvent,
+  type UsersMentionedEvent,
+} from '../../common/events/domain-events.js';
 import { decodeCursor, toPage } from '../../common/pagination/cursor.js';
 import { firstLink } from '../../common/text/links.js';
 import { mentionedUsernames } from '../../common/text/mentions.js';
@@ -93,6 +98,15 @@ export class PostsService {
         quoterId: authorId,
         excerpt: body.slice(0, QUOTE_EXCERPT_LENGTH),
       } satisfies PostQuotedEvent);
+    }
+    // Only public posts: everyone following the district can see them.
+    if (post.district && post.audience === 'EVERYONE' && !post.author.isPrivate) {
+      this.events.emit(DomainEvent.DistrictPostCreated, {
+        postId: post.id,
+        authorId,
+        districtId: post.district.id,
+        excerpt: body.slice(0, QUOTE_EXCERPT_LENGTH),
+      } satisfies DistrictPostCreatedEvent);
     }
     // The quoted author already hears about it as a quote.
     await this.announceMentions(authorId, post.id, body, { skip: quoted ? [quoted.author.id] : [] });

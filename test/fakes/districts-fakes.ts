@@ -23,6 +23,8 @@ export class InMemoryDistrictsRepository implements DistrictsRepository {
     row('matale', 'Matale', Province.CENTRAL),
   ];
   readonly follows = new Set<string>(); // `${userId}:${districtId}`
+  /** Follows with the bell on, same keys as `follows`. */
+  readonly notifying = new Set<string>();
   readonly people: (UserSummary & { hometownId: string })[] = [];
   /** Public activity (already weighted), as the real repository would find it in the tables. */
   readonly events: { districtId: string; weight: number; at: Date; post: boolean }[] = [];
@@ -43,17 +45,20 @@ export class InMemoryDistrictsRepository implements DistrictsRepository {
     const states = new Map<string, FollowState>();
     for (const follow of this.follows) {
       const [userId, districtId] = follow.split(':') as [string, string];
-      const state = states.get(districtId) ?? { followerCount: 0, followedByMe: false };
+      const state = states.get(districtId) ?? { followerCount: 0, followedByMe: false, notifying: false };
+      const mine = userId === viewerId;
       states.set(districtId, {
         followerCount: state.followerCount + 1,
-        followedByMe: state.followedByMe || userId === viewerId,
+        followedByMe: state.followedByMe || mine,
+        notifying: state.notifying || (mine && this.notifying.has(follow)),
       });
     }
     return states;
   }
 
-  async isFollowing(userId: string, districtId: string): Promise<boolean> {
-    return this.follows.has(`${userId}:${districtId}`);
+  async findFollow(userId: string, districtId: string): Promise<{ notify: boolean } | null> {
+    const key = `${userId}:${districtId}`;
+    return this.follows.has(key) ? { notify: this.notifying.has(key) } : null;
   }
 
   async follow(userId: string, districtId: string): Promise<void> {
@@ -62,6 +67,15 @@ export class InMemoryDistrictsRepository implements DistrictsRepository {
 
   async unfollow(userId: string, districtId: string): Promise<void> {
     this.follows.delete(`${userId}:${districtId}`);
+    this.notifying.delete(`${userId}:${districtId}`);
+  }
+
+  async setNotify(userId: string, districtId: string, notify: boolean): Promise<boolean> {
+    const key = `${userId}:${districtId}`;
+    if (!this.follows.has(key)) return false;
+    if (notify) this.notifying.add(key);
+    else this.notifying.delete(key);
+    return true;
   }
 
   async activity(since: Date, halfLifeHours: number): Promise<DistrictActivity[]> {

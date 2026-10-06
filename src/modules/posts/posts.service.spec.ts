@@ -33,6 +33,8 @@ function setup() {
   });
   const mentioned: unknown[] = [];
   events.on(DomainEvent.UsersMentioned, (e) => mentioned.push(e));
+  const districtPosts: unknown[] = [];
+  events.on(DomainEvent.DistrictPostCreated, (e) => districtPosts.push(e));
   return {
     repo,
     storage,
@@ -40,6 +42,7 @@ function setup() {
     videos,
     quoted,
     mentioned,
+    districtPosts,
     links,
     service: new PostsService(repo, media, events, links),
   };
@@ -57,6 +60,24 @@ async function readyPhoto(ctx: ReturnType<typeof setup>, owner = 'u-kasun') {
 }
 
 describe('PostsService', () => {
+  describe('district post notifications', () => {
+    it('announces public posts in a district, for its followers with the bell on', async () => {
+      const ctx = setup();
+      const post = await ctx.service.create('u-kasun', { body: '  Perahera tonight!  ', districtId: 'kandy' });
+      expect(ctx.districtPosts).toEqual([
+        { postId: post.id, authorId: 'u-kasun', districtId: 'kandy', excerpt: 'Perahera tonight!' },
+      ]);
+    });
+
+    it('stays quiet for posts to all districts, followers-only posts and private accounts', async () => {
+      const ctx = setup();
+      await ctx.service.create('u-kasun', { body: 'Everywhere' });
+      await ctx.service.create('u-kasun', { body: 'Friends only', districtId: 'kandy', audience: 'FOLLOWERS' });
+      await ctx.service.create('u-sachini', { body: 'Private me', districtId: 'kandy' });
+      expect(ctx.districtPosts).toEqual([]);
+    });
+  });
+
   describe('create', () => {
     it('creates a trimmed text post about a district, public by default', async () => {
       const post = await setup().service.create('u-kasun', {

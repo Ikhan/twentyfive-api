@@ -27,6 +27,8 @@ export interface DistrictSummary {
 export interface FollowState {
   followerCount: number;
   followedByMe: boolean;
+  /** The viewer's bell: they're told about new posts here. Only ever true while followedByMe. */
+  notifying: boolean;
 }
 
 export interface DistrictDetail extends DistrictSummary, FollowState {

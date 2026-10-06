@@ -67,4 +67,68 @@ describe('PrismaNotificationsRepository (integration)', () => {
     await prisma.post.delete({ where: { id: postId } });
     expect(await repo.unreadCount(kasun)).toBe(0);
   });
+
+  describe('district posts', () => {
+    const post = async (authorId: string, body: string) =>
+      (await prisma.post.create({ data: { authorId, districtId: 'kandy', body } })).id;
+    const announce = (actorId: string, postId: string, excerpt: string) =>
+      repo.notifyDistrictFollowers({ districtId: 'kandy', authorId: actorId, postId, excerpt });
+    const bell = (userId: string, notify = true) =>
+      prisma.districtFollow.create({ data: { userId, districtId: 'kandy', notify } });
+
+    it('groups new posts into one unread row per district, showing the newest', async () => {
+      const dilan = (await prisma.user.create({ data: { username: 'dilan', displayName: 'Dilan' } })).id;
+      await bell(kasun);
+      await announce(arun, await post(arun, 'first'), 'first');
+      const second = await post(dilan, 'second');
+      await announce(dilan, second, 'second');
+      const [n, ...rest] = await repo.list(kasun, { take: 10 });
+      expect(rest).toEqual([]);
+      expect(n).toMatchObject({
+        type: 'DISTRICT_POST',
+        actor: { username: 'dilan' },
+        postId: second,
+        excerpt: 'second',
+        district: { id: 'kandy', name: 'Kandy' },
+        postCount: 2,
+        read: false,
+      });
+      expect(await repo.unreadCount(kasun)).toBe(1);
+    });
+
+    it('starts a new row once the group is read', async () => {
+      await bell(kasun);
+      await announce(arun, await post(arun, 'one'), 'one');
+      await repo.markAllRead(kasun);
+      await announce(arun, await post(arun, 'two'), 'two');
+      const rows = await repo.list(kasun, { take: 10 });
+      expect(rows.map((r) => [r.excerpt, r.postCount, r.read])).toEqual([
+        ['two', 1, false],
+        ['one', 1, true],
+      ]);
+    });
+
+    it('skips the author, followers without the bell, and anyone across a block', async () => {
+      const users = await Promise.all(
+        ['quiet', 'blocker', 'blocked', 'stranger'].map((username) =>
+          prisma.user.create({ data: { username, displayName: username } }),
+        ),
+      );
+      const [quiet, blocker, blocked] = users.map((u) => u.id) as [string, string, string];
+      await bell(arun); // the author
+      await bell(quiet, false);
+      await bell(blocker);
+      await bell(blocked);
+      await prisma.block.create({ data: { blockerId: blocker, blockedId: arun } });
+      await prisma.block.create({ data: { blockerId: arun, blockedId: blocked } });
+      await announce(arun, await post(arun, 'hello'), 'hello');
+      expect(await prisma.notification.count()).toBe(0);
+    });
+
+    it('shows ordinary notifications without a district', async () => {
+      await repo.create({ recipientId: kasun, actorId: arun, type: 'FOLLOW' });
+      const [n] = await repo.list(kasun, { take: 1 });
+      expect(n).toMatchObject({ district: null, postCount: 1 });
+    });
+  });
 });

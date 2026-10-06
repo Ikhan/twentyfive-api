@@ -46,17 +46,30 @@ export class PrismaDistrictsRepository implements DistrictsRepository {
     const [counts, mine] = await Promise.all([
       this.prisma.districtFollow.groupBy({ by: ['districtId'], _count: { _all: true } }),
       viewerId
-        ? this.prisma.districtFollow.findMany({ where: { userId: viewerId }, select: { districtId: true } })
+        ? this.prisma.districtFollow.findMany({
+            where: { userId: viewerId },
+            select: { districtId: true, notify: true },
+          })
         : [],
     ]);
-    const followed = new Set(mine.map((f) => f.districtId));
+    const followed = new Map(mine.map((f) => [f.districtId, f.notify]));
     return new Map(
-      counts.map((c) => [c.districtId, { followerCount: c._count._all, followedByMe: followed.has(c.districtId) }]),
+      counts.map((c) => [
+        c.districtId,
+        {
+          followerCount: c._count._all,
+          followedByMe: followed.has(c.districtId),
+          notifying: followed.get(c.districtId) ?? false,
+        },
+      ]),
     );
   }
 
-  async isFollowing(userId: string, districtId: string): Promise<boolean> {
-    return (await this.prisma.districtFollow.count({ where: { userId, districtId } })) > 0;
+  findFollow(userId: string, districtId: string): Promise<{ notify: boolean } | null> {
+    return this.prisma.districtFollow.findUnique({
+      where: { userId_districtId: { userId, districtId } },
+      select: { notify: true },
+    });
   }
 
   async follow(userId: string, districtId: string): Promise<void> {
@@ -65,6 +78,11 @@ export class PrismaDistrictsRepository implements DistrictsRepository {
 
   async unfollow(userId: string, districtId: string): Promise<void> {
     await this.prisma.districtFollow.deleteMany({ where: { userId, districtId } });
+  }
+
+  async setNotify(userId: string, districtId: string, notify: boolean): Promise<boolean> {
+    const { count } = await this.prisma.districtFollow.updateMany({ where: { userId, districtId }, data: { notify } });
+    return count > 0;
   }
 
   /**

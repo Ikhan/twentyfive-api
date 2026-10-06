@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { Paginated } from '../../common/api-response.js';
-import { NotFoundError } from '../../common/errors/app-error.js';
+import { ConflictError, NotFoundError } from '../../common/errors/app-error.js';
 import { decodeCursor, toPage } from '../../common/pagination/cursor.js';
 import type { Province } from '../../generated/prisma/enums.js';
 import type { UserSummary } from '../users/users.types.js';
@@ -55,7 +55,7 @@ export class DistrictsService {
     const [rows, states] = await Promise.all([this.districts.list(province), this.districts.followStates(viewerId)]);
     return rows.map((row) => ({
       ...toSummary(row),
-      ...(states.get(row.id) ?? { followerCount: 0, followedByMe: false }),
+      ...(states.get(row.id) ?? { followerCount: 0, followedByMe: false, notifying: false }),
     }));
   }
 
@@ -78,6 +78,15 @@ export class DistrictsService {
   async unfollow(userId: string, districtId: string): Promise<FollowState> {
     await this.require(districtId);
     await this.districts.unfollow(userId, districtId);
+    return this.followState(districtId, userId);
+  }
+
+  /** The bell: tell this follower about new posts in the district. */
+  async setNotifications(userId: string, districtId: string, on: boolean): Promise<FollowState> {
+    const row = await this.require(districtId);
+    if (!(await this.districts.setNotify(userId, districtId, on))) {
+      throw new ConflictError(`Follow ${row.name} to get notified about its posts.`);
+    }
     return this.followState(districtId, userId);
   }
 
@@ -122,11 +131,11 @@ export class DistrictsService {
   }
 
   private async followState(districtId: string, viewerId?: string): Promise<FollowState> {
-    const [followerCount, followedByMe] = await Promise.all([
+    const [followerCount, follow] = await Promise.all([
       this.districts.followerCount(districtId),
-      viewerId ? this.districts.isFollowing(viewerId, districtId) : Promise.resolve(false),
+      viewerId ? this.districts.findFollow(viewerId, districtId) : Promise.resolve(null),
     ]);
-    return { followerCount, followedByMe };
+    return { followerCount, followedByMe: follow !== null, notifying: follow?.notify ?? false };
   }
 
   private async require(districtId: string): Promise<DistrictRow> {

@@ -1,5 +1,5 @@
 import { InMemoryDistrictsRepository } from '../../../test/fakes/districts-fakes.js';
-import { NotFoundError, ValidationError } from '../../common/errors/app-error.js';
+import { ConflictError, NotFoundError, ValidationError } from '../../common/errors/app-error.js';
 import { Province } from '../../generated/prisma/enums.js';
 import { DistrictsService } from './districts.service.js';
 
@@ -31,6 +31,7 @@ describe('DistrictsService', () => {
       colors: ['#000000', '#ffffff'],
       followerCount: 0,
       followedByMe: false,
+      notifying: false,
     });
     expect((await setup().service.list(Province.CENTRAL)).map((d) => d.id)).toEqual(['kandy', 'matale']);
   });
@@ -74,10 +75,56 @@ describe('DistrictsService', () => {
 
   it('follows and unfollows idempotently, returning the new state', async () => {
     const { service } = setup();
-    await expect(service.follow('u1', 'kandy')).resolves.toEqual({ followerCount: 1, followedByMe: true });
-    await expect(service.follow('u1', 'kandy')).resolves.toEqual({ followerCount: 1, followedByMe: true });
-    await expect(service.unfollow('u1', 'kandy')).resolves.toEqual({ followerCount: 0, followedByMe: false });
-    await expect(service.unfollow('u1', 'kandy')).resolves.toEqual({ followerCount: 0, followedByMe: false });
+    const following = { followerCount: 1, followedByMe: true, notifying: false };
+    const notFollowing = { followerCount: 0, followedByMe: false, notifying: false };
+    await expect(service.follow('u1', 'kandy')).resolves.toEqual(following);
+    await expect(service.follow('u1', 'kandy')).resolves.toEqual(following);
+    await expect(service.unfollow('u1', 'kandy')).resolves.toEqual(notFollowing);
+    await expect(service.unfollow('u1', 'kandy')).resolves.toEqual(notFollowing);
+  });
+
+  describe('post notifications (the bell)', () => {
+    it('are off when you follow, and turn on and off idempotently', async () => {
+      const { service } = setup();
+      await service.follow('u1', 'kandy');
+      await expect(service.detail('kandy', 'u1')).resolves.toMatchObject({ notifying: false });
+      await expect(service.setNotifications('u1', 'kandy', true)).resolves.toEqual({
+        followerCount: 1,
+        followedByMe: true,
+        notifying: true,
+      });
+      await expect(service.setNotifications('u1', 'kandy', true)).resolves.toMatchObject({ notifying: true });
+      await expect(service.detail('kandy', 'u1')).resolves.toMatchObject({ notifying: true });
+      await expect(service.detail('kandy', 'u2')).resolves.toMatchObject({ notifying: false });
+      await expect(service.setNotifications('u1', 'kandy', false)).resolves.toMatchObject({ notifying: false });
+    });
+
+    it('need you to follow the district first', async () => {
+      const { service } = setup();
+      await expect(service.setNotifications('u1', 'kandy', true)).rejects.toBeInstanceOf(ConflictError);
+      await expect(service.setNotifications('u1', 'atlantis', true)).rejects.toBeInstanceOf(NotFoundError);
+    });
+
+    it('go off when you unfollow, and stay off if you follow again', async () => {
+      const { service } = setup();
+      await service.follow('u1', 'kandy');
+      await service.setNotifications('u1', 'kandy', true);
+      await service.unfollow('u1', 'kandy');
+      await expect(service.follow('u1', 'kandy')).resolves.toMatchObject({ notifying: false });
+    });
+
+    it('show in the Explore list for districts you have the bell on for', async () => {
+      const { service } = setup();
+      await service.follow('u1', 'kandy');
+      await service.follow('u1', 'ampara');
+      await service.setNotifications('u1', 'kandy', true);
+      const list = await service.list(undefined, 'u1');
+      expect(list.map((d) => [d.id, d.notifying])).toEqual([
+        ['ampara', false],
+        ['kandy', true],
+        ['matale', false],
+      ]);
+    });
   });
 
   it('pages through residents in username order', async () => {

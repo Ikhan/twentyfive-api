@@ -50,6 +50,18 @@ export class DistrictsController {
     return this.districts.unfollow(user.id, id);
   }
 
+  @Put(':id/notifications')
+  @ApiOperation({ summary: 'Turn on notifications for new posts in a district you follow (idempotent)' })
+  notifyOn(@CurrentUser() user: AuthUser, @Param('id') id: string): Promise<FollowState> {
+    return this.districts.setNotifications(user.id, id, true);
+  }
+
+  @Delete(':id/notifications')
+  @ApiOperation({ summary: 'Turn off notifications for new posts in a district (idempotent)' })
+  notifyOff(@CurrentUser() user: AuthUser, @Param('id') id: string): Promise<FollowState> {
+    return this.districts.setNotifications(user.id, id, false);
+  }
+
   @Public()
   @Get(':id/residents')
   @ApiOperation({ summary: 'People from this district (paginated)' })
