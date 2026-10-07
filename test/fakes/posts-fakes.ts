@@ -15,6 +15,7 @@ export class InMemoryPostsRepository implements PostsRepository {
   /** quote post id → quoted post id (null once the quoted post is deleted) */
   readonly quotes = new Map<string, string | null>();
   readonly approved = new Set<string>(); // `${follower}>${author}`
+  readonly likes = new Set<string>(); // `${user}>${post id}`
   private clock = Date.parse('2026-09-01T00:00:00Z');
 
   async create({ photos, video = null, quotedPostId, link = null, ...post }: NewPost): Promise<PostRecord> {
@@ -94,7 +95,9 @@ export class InMemoryPostsRepository implements PostsRepository {
       scope.kind === 'everything' ||
       (scope.kind === 'district' && p.district?.id === scope.districtId) ||
       (scope.kind === 'author' && p.author.id === scope.authorId) ||
-      (scope.kind === 'following' && (p.author.id === viewerId || this.approved.has(`${viewerId}>${p.author.id}`)));
+      (scope.kind === 'following' && (p.author.id === viewerId || this.approved.has(`${viewerId}>${p.author.id}`))) ||
+      (scope.kind === 'liked' && this.likes.has(`${viewerId}>${p.id}`)) ||
+      (scope.kind === 'media' && p.author.id === viewerId && (p.photos.length > 0 || p.video !== null));
     const afterCursor = (p: PostRecord) =>
       !page.after ||
       p.createdAt < new Date(page.after.t) ||

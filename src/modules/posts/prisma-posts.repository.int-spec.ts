@@ -178,6 +178,40 @@ describe('PrismaPostsRepository (integration)', () => {
     ]);
   });
 
+  it('Likes = posts you liked that you can still see; Media = your posts with photos or a video', async () => {
+    const open = await post('kasun', 'kasun public');
+    const hidden = await post('sachini', 'sachini private');
+    await post('kasun', 'not liked');
+    await prisma.postLike.createMany({
+      data: [
+        { userId: u.arun!, postId: open.id },
+        { userId: u.arun!, postId: hidden.id },
+        { userId: u.kasun!, postId: open.id },
+      ],
+    });
+    expect(bodies(await posts.list(u.arun!, { kind: 'liked' }, { take: 10 }))).toEqual(['kasun public']);
+
+    const media = await prisma.media.create({
+      data: {
+        ownerId: u.arun!,
+        purpose: 'POST_PHOTO',
+        status: 'READY',
+        key: `post_photo/${u.arun}/m.jpg`,
+        contentType: 'image/jpeg',
+      },
+    });
+    await post('arun', 'arun words');
+    await posts.create({
+      authorId: u.arun!,
+      body: 'arun photo',
+      districtId: 'kandy',
+      audience: 'EVERYONE',
+      photos: [{ mediaId: media.id, url: 'https://cdn/m.jpg' }],
+    });
+    expect(bodies(await posts.list(u.arun!, { kind: 'media' }, { take: 10 }))).toEqual(['arun photo']);
+    expect(bodies(await posts.list(u.kasun!, { kind: 'media' }, { take: 10 }))).toEqual([]);
+  });
+
   it('Following = people you follow, districts you follow, and yourself', async () => {
     await post('kasun', 'from kasun');
     await post('arun', 'arun in galle', { districtId: 'galle' });

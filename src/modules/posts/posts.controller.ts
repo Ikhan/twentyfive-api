@@ -49,6 +49,18 @@ export class PostsController {
     return this.posts.byDistrict(user.id, id, page);
   }
 
+  @Get('users/me/likes')
+  @ApiOperation({ summary: 'Posts you liked (only ever yours: likes are private)' })
+  myLikes(@CurrentUser() user: AuthUser, @Query() page: PageQueryDto): Promise<Paginated<PostView>> {
+    return this.posts.myLikes(user.id, page);
+  }
+
+  @Get('users/me/media')
+  @ApiOperation({ summary: 'Your posts with photos or a video (only ever yours)' })
+  myMedia(@CurrentUser() user: AuthUser, @Query() page: PageQueryDto): Promise<Paginated<PostView>> {
+    return this.posts.myMedia(user.id, page);
+  }
+
   @Get('users/:username/posts')
   @ApiOperation({ summary: 'A profile’s posts (private accounts: followers only)' })
   byAuthor(
