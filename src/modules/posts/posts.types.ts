@@ -80,7 +80,11 @@ export type PostScope =
   | { kind: 'everything' }
   | { kind: 'following' }
   | { kind: 'district'; districtId: string }
-  | { kind: 'author'; authorId: string };
+  | { kind: 'author'; authorId: string }
+  /** Posts the viewer liked (their own Likes tab). */
+  | { kind: 'liked' }
+  /** The viewer's own posts with photos or a video (their own Media tab). */
+  | { kind: 'media' };
 
 export interface NewPost {
   authorId: string;

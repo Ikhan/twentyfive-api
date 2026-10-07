@@ -145,6 +145,10 @@ function scopeWhere(viewerId: string, scope: PostScope): Prisma.PostWhereInput {
           { district: { followers: { some: { userId: viewerId } } } },
         ],
       };
+    case 'liked':
+      return { likes: { some: { userId: viewerId } } };
+    case 'media':
+      return { authorId: viewerId, OR: [{ photos: { some: {} } }, { video: { isNot: null } }] };
   }
 }
 

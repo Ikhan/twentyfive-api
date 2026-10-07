@@ -10,6 +10,8 @@ describe('PostsController', () => {
       feed: vi.fn(),
       byDistrict: vi.fn(),
       byAuthor: vi.fn(),
+      myLikes: vi.fn(),
+      myMedia: vi.fn(),
     };
     const c = new PostsController(service as unknown as PostsService);
     const me = { id: 'u1' };
@@ -20,11 +22,15 @@ describe('PostsController', () => {
     await c.feed(me, { tab: 'following', limit: 10 });
     await c.byDistrict(me, 'kandy', page);
     await c.byAuthor(me, 'kasun', page);
+    await c.myLikes(me, page);
+    await c.myMedia(me, page);
     expect(service.create).toHaveBeenCalledWith('u1', { body: 'hi', districtId: 'kandy' });
     expect(service.get).toHaveBeenCalledWith('p1', 'u1');
     expect(service.delete).toHaveBeenCalledWith('p1', 'u1');
     expect(service.feed).toHaveBeenCalledWith('u1', 'following', { tab: 'following', limit: 10 });
     expect(service.byDistrict).toHaveBeenCalledWith('u1', 'kandy', page);
     expect(service.byAuthor).toHaveBeenCalledWith('u1', 'kasun', page);
+    expect(service.myLikes).toHaveBeenCalledWith('u1', page);
+    expect(service.myMedia).toHaveBeenCalledWith('u1', page);
   });
 });

@@ -202,6 +202,16 @@ export class PostsService {
     return this.list(viewerId, { kind: 'author', authorId: author.id }, page);
   }
 
+  /** Your Likes tab: posts you liked that you can still see. Only ever your own (Twitter keeps likes private). */
+  myLikes(viewerId: string, page: PageInput): Promise<Paginated<PostView>> {
+    return this.list(viewerId, { kind: 'liked' }, page);
+  }
+
+  /** Your Media tab: your own posts with photos or a video. */
+  myMedia(viewerId: string, page: PageInput): Promise<Paginated<PostView>> {
+    return this.list(viewerId, { kind: 'media' }, page);
+  }
+
   private async list(viewerId: string, scope: PostScope, page: PageInput): Promise<Paginated<PostView>> {
     const after = decodeCursor(page.cursor, isCursor);
     const rows = await this.withMentionsAll(await this.posts.list(viewerId, scope, { after, take: page.limit + 1 }));

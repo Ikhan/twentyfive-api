@@ -200,6 +200,27 @@ describe('PostsService', () => {
       await expect(service.byAuthor('u-arun', 'nobody', { limit: 10 })).rejects.toBeInstanceOf(NotFoundError);
     });
 
+    it('lists only your own posts with photos or a video, for your Media tab', async () => {
+      const ctx = setup();
+      const photo = await readyPhoto(ctx);
+      await ctx.service.create('u-kasun', { body: 'words only', districtId: 'kandy' });
+      await ctx.service.create('u-kasun', { body: 'with photo', districtId: 'kandy', mediaIds: [photo] });
+      const arunPhoto = await readyPhoto(ctx, 'u-arun');
+      await ctx.service.create('u-arun', { body: 'arun photo', districtId: 'galle', mediaIds: [arunPhoto] });
+      expect((await ctx.service.myMedia('u-kasun', { limit: 10 })).items.map((p) => p.body)).toEqual(['with photo']);
+    });
+
+    it('lists the posts you liked that you can still see, for your Likes tab', async () => {
+      const { service, repo } = setup();
+      const liked = await service.create('u-kasun', { body: 'liked', districtId: 'kandy' });
+      await service.create('u-kasun', { body: 'not liked', districtId: 'kandy' });
+      const hidden = await service.create('u-sachini', { body: 'private', districtId: 'kandy' });
+      repo.likes.add(`u-arun>${liked.id}`);
+      repo.likes.add(`u-arun>${hidden.id}`);
+      repo.likes.add(`u-kasun>${liked.id}`);
+      expect((await service.myLikes('u-arun', { limit: 10 })).items.map((p) => p.body)).toEqual(['liked']);
+    });
+
     it('rejects tampered cursors', async () => {
       const bad = Buffer.from(JSON.stringify({ t: 'not-a-date', id: 'x' })).toString('base64url');
       await expect(setup().service.feed('u-arun', 'for-you', { limit: 2, cursor: bad })).rejects.toBeInstanceOf(
