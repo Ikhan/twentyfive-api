@@ -6,6 +6,8 @@ export type Relationship = 'self' | 'none' | 'requested' | 'following';
 export interface FollowStats {
   followers: number;
   following: number;
+  /** Everything they've posted (like Twitter and Bluesky, the count shows even when the posts don't). */
+  posts: number;
   relationship: Relationship;
   /** They follow you (accepted). Useful for "Follows you" badges. */
   followsYou: boolean;

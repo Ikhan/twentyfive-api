@@ -30,6 +30,7 @@ describe('FollowsService', () => {
     await expect(service.follow('u-kasun', 'Tharushi')).resolves.toEqual({
       followers: 1,
       following: 0,
+      posts: 0,
       relationship: 'following',
       followsYou: false,
     });
@@ -65,18 +66,21 @@ describe('FollowsService', () => {
   });
 
   it('reports stats: self, followsYou and counts', async () => {
-    const { service } = setup();
+    const { service, repo } = setup();
+    repo.postCounts.set('u-kasun', 3);
     await service.follow('u-tharushi', 'kasun');
     await service.follow('u-kasun', 'tharushi');
     await expect(service.stats('u-kasun', 'kasun')).resolves.toEqual({
       followers: 1,
       following: 1,
+      posts: 3,
       relationship: 'self',
       followsYou: false,
     });
     await expect(service.stats('u-kasun', 'tharushi')).resolves.toEqual({
       followers: 1,
       following: 1,
+      posts: 0,
       relationship: 'following',
       followsYou: true,
     });

@@ -11,7 +11,7 @@ export interface FollowsRepository {
   accept(followerId: string, followeeId: string): Promise<boolean>;
   /** Approves every pending request to this user; returns the approved followers' ids. */
   acceptAll(followeeId: string): Promise<string[]>;
-  counts(userId: string): Promise<{ followers: number; following: number }>;
+  counts(userId: string): Promise<{ followers: number; following: number; posts: number }>;
   /** Accepted followers / following / pending requesters, by username, after `afterUsername`. */
   followers(userId: string, page: { afterUsername?: string; take: number }): Promise<UserSummary[]>;
   following(userId: string, page: { afterUsername?: string; take: number }): Promise<UserSummary[]>;
