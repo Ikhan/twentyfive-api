@@ -47,7 +47,7 @@ describe('PrismaFollowsRepository (integration)', () => {
     await expect(follows.accept(ids.kasun!, ids.sachini!)).resolves.toBe(false);
     const approved = await follows.acceptAll(ids.sachini!);
     expect(approved.sort()).toEqual([ids.dilan, ids.tharushi].sort());
-    await expect(follows.counts(ids.sachini!)).resolves.toEqual({ followers: 3, following: 0 });
+    await expect(follows.counts(ids.sachini!)).resolves.toEqual({ followers: 3, following: 0, posts: 0 });
     const row = await prisma.follow.findUnique({
       where: { followerId_followeeId: { followerId: ids.dilan!, followeeId: ids.sachini! } },
     });
@@ -59,8 +59,15 @@ describe('PrismaFollowsRepository (integration)', () => {
     await follows.create(ids.dilan!, ids.kasun!, 'ACCEPTED');
     await follows.create(ids.kasun!, ids.sachini!, 'PENDING');
     await follows.create(ids.kasun!, ids.tharushi!, 'ACCEPTED');
+    await prisma.post.createMany({
+      data: [
+        { authorId: ids.kasun!, districtId: 'kandy', body: 'one' },
+        { authorId: ids.kasun!, districtId: 'kandy', body: 'two', audience: 'FOLLOWERS' },
+        { authorId: ids.dilan!, districtId: 'kandy', body: 'not kasun' },
+      ],
+    });
 
-    await expect(follows.counts(ids.kasun!)).resolves.toEqual({ followers: 2, following: 1 });
+    await expect(follows.counts(ids.kasun!)).resolves.toEqual({ followers: 2, following: 1, posts: 2 });
     expect((await follows.followers(ids.kasun!, { take: 10 })).map((u) => u.username)).toEqual(['dilan', 'tharushi']);
     expect((await follows.followers(ids.kasun!, { afterUsername: 'dilan', take: 10 })).map((u) => u.username)).toEqual([
       'tharushi',

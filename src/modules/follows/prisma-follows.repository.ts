@@ -62,12 +62,13 @@ export class PrismaFollowsRepository implements FollowsRepository {
     });
   }
 
-  async counts(userId: string): Promise<{ followers: number; following: number }> {
-    const [followers, following] = await Promise.all([
+  async counts(userId: string): Promise<{ followers: number; following: number; posts: number }> {
+    const [followers, following, posts] = await Promise.all([
       this.prisma.follow.count({ where: { followeeId: userId, status: DbFollowStatus.ACCEPTED } }),
       this.prisma.follow.count({ where: { followerId: userId, status: DbFollowStatus.ACCEPTED } }),
+      this.prisma.post.count({ where: { authorId: userId } }),
     ]);
-    return { followers, following };
+    return { followers, following, posts };
   }
 
   followers(userId: string, page: Page): Promise<UserSummary[]> {

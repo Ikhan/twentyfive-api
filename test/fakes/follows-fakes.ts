@@ -12,6 +12,7 @@ export class InMemoryFollowsRepository implements FollowsRepository {
     { id: 'u-dilan', username: 'dilan', isPrivate: false },
   ];
   readonly edges = new Map<string, FollowStatus>(); // `${follower}>${followee}`
+  readonly postCounts = new Map<string, number>(); // user id → posts they have made
 
   async findTarget(username: string): Promise<FollowTarget | null> {
     return this.users.find((u) => u.username === username) ?? null;
@@ -49,11 +50,12 @@ export class InMemoryFollowsRepository implements FollowsRepository {
     return approved;
   }
 
-  async counts(userId: string): Promise<{ followers: number; following: number }> {
+  async counts(userId: string): Promise<{ followers: number; following: number; posts: number }> {
     const accepted = [...this.edges].filter(([, s]) => s === 'ACCEPTED').map(([k]) => k.split('>'));
     return {
       followers: accepted.filter(([, to]) => to === userId).length,
       following: accepted.filter(([from]) => from === userId).length,
+      posts: this.postCounts.get(userId) ?? 0,
     };
   }
 
