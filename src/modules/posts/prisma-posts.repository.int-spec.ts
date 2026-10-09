@@ -113,7 +113,7 @@ describe('PrismaPostsRepository (integration)', () => {
     });
     await prisma.media.update({
       where: { id: mediaIds[1]! },
-      data: { width: 1200, height: 800, placeholder: 'data:image/webp;base64,AAAA' },
+      data: { width: 1200, height: 800, placeholder: 'data:image/webp;base64,AAAA', sizeBytes: 112640 },
     });
     expect(created).toMatchObject({
       body: 'Perahera',
@@ -128,8 +128,16 @@ describe('PrismaPostsRepository (integration)', () => {
         width: 1200,
         height: 800,
         placeholder: 'data:image/webp;base64,AAAA',
+        sizeBytes: 112640,
       },
-      { id: expect.any(String), url: 'https://cdn/1.jpg', width: null, height: null, placeholder: null },
+      {
+        id: expect.any(String),
+        url: 'https://cdn/1.jpg',
+        width: null,
+        height: null,
+        placeholder: null,
+        sizeBytes: null,
+      },
     ]);
     await expect(
       posts.create({

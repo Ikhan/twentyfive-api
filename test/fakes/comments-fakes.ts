@@ -32,7 +32,14 @@ export class InMemoryCommentsRepository implements CommentsRepository {
       createdAt: new Date((this.clock += 60_000)),
       author: { id: authorId, username: authorId, displayName: authorId, avatarUrl: null, isPrivate: false },
       postAuthorId: this.postAuthorOf(postId),
-      photos: photos.map((p) => ({ id: p.mediaId, url: p.url, width: null, height: null, placeholder: null })),
+      photos: photos.map((p) => ({
+        id: p.mediaId,
+        url: p.url,
+        width: null,
+        height: null,
+        placeholder: null,
+        sizeBytes: null,
+      })),
       video: video && {
         id: video.mediaId,
         url: video.url,
