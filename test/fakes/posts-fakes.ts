@@ -33,7 +33,7 @@ export class InMemoryPostsRepository implements PostsRepository {
         isPrivate: author.isPrivate,
       },
       district: post.districtId ? { id: post.districtId, name: post.districtId, colors: ['#000', '#fff'] } : null,
-      photos: photos.map((p) => ({ id: p.mediaId, url: p.url })),
+      photos: photos.map((p) => ({ id: p.mediaId, url: p.url, width: null, height: null, placeholder: null })),
       video: video && {
         id: video.mediaId,
         url: video.url,

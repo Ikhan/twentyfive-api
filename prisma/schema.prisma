@@ -189,8 +189,11 @@ model Media {
   sizeBytes       Int?          @map("size_bytes")
   /// Videos only, read from the file when it's verified.
   durationSeconds Float?        @map("duration_seconds")
+  /// Videos and post photos: picture size, read from the file when it's verified.
   width           Int?
   height          Int?
+  /// Post photos only: a tiny WebP data: URL shown blurred while the photo loads.
+  placeholder     String?
   createdAt       DateTime      @default(now()) @map("created_at")
   readyAt         DateTime?     @map("ready_at")
   postPhoto       PostPhoto?

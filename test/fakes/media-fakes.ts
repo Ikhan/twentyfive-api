@@ -1,3 +1,4 @@
+import type { PhotoPreview, PhotoPreviewer } from '../../src/modules/media/photo-preview.js';
 import type { VideoDetails, VideoProbe } from '../../src/modules/media/video-probe.js';
 import type { MediaRepository } from '../../src/modules/media/media.repository.js';
 import type { MediaPurpose, MediaRecord } from '../../src/modules/media/media.types.js';
@@ -55,8 +56,8 @@ export class FakeObjectStorage implements ObjectStorage {
 export class InMemoryMediaRepository implements MediaRepository {
   readonly rows = new Map<string, MediaRecord>();
 
-  async create(media: Omit<MediaRecord, 'status' | 'sizeBytes' | 'video'>): Promise<MediaRecord> {
-    const record: MediaRecord = { ...media, status: 'PENDING', sizeBytes: null, video: null };
+  async create(media: Omit<MediaRecord, 'status' | 'sizeBytes' | 'video' | 'photo'>): Promise<MediaRecord> {
+    const record: MediaRecord = { ...media, status: 'PENDING', sizeBytes: null, video: null, photo: null };
     this.rows.set(record.id, record);
     return record;
   }
@@ -65,8 +66,14 @@ export class InMemoryMediaRepository implements MediaRepository {
     return this.rows.get(id) ?? null;
   }
 
-  async markReady(id: string, sizeBytes: number, video: VideoDetails | null = null): Promise<MediaRecord> {
-    const next = { ...this.rows.get(id)!, status: 'READY' as const, sizeBytes, video };
+  async markReady(
+    id: string,
+    sizeBytes: number,
+    details: VideoDetails | PhotoPreview | null = null,
+  ): Promise<MediaRecord> {
+    const video = details && 'durationSeconds' in details ? details : null;
+    const photo = details && 'placeholder' in details ? details : null;
+    const next = { ...this.rows.get(id)!, status: 'READY' as const, sizeBytes, video, photo };
     this.rows.set(id, next);
     return next;
   }
@@ -84,5 +91,16 @@ export class FakeVideoProbe implements VideoProbe {
 
   async probe(sizeBytes: number): Promise<VideoDetails | null> {
     return this.details.get(sizeBytes) ?? null;
+  }
+}
+
+/** Photo previews for service tests: a fixed preview for every photo, or none (`result = null`). */
+export class FakePhotoPreviewer implements PhotoPreviewer {
+  result: PhotoPreview | null = { width: 1200, height: 800, placeholder: 'data:image/webp;base64,AAAA' };
+  readonly seen: number[] = []; // sizes of the files it was given
+
+  async preview(bytes: Uint8Array): Promise<PhotoPreview | null> {
+    this.seen.push(bytes.length);
+    return this.result;
   }
 }

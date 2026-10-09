@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type { Prisma } from '../../generated/prisma/client.js';
 import { notBlockedWith } from '../../prisma/block-filters.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { PHOTOS, toPhotoViews } from '../posts/photo-select.js';
 import type { CommentsRepository } from './comments.repository.js';
 import type { CommentCursor, CommentOwnership, CommentRecord, NewComment } from './comments.types.js';
 
@@ -14,15 +15,16 @@ const select = (viewerId: string) =>
     body: true,
     createdAt: true,
     author: { select: { id: true, username: true, displayName: true, avatarUrl: true, isPrivate: true } },
-    photos: { select: { id: true, url: true }, orderBy: { position: 'asc' } },
+    photos: PHOTOS,
     video: { select: { mediaId: true, url: true, durationSeconds: true, width: true, height: true } },
     _count: { select: { replies: { where: { author: notBlockedWith(viewerId) } } } },
   }) as const satisfies Prisma.CommentSelect;
 
 type Row = Prisma.CommentGetPayload<{ select: ReturnType<typeof select> }>;
 
-const toRecord = ({ _count, video, ...row }: Row): CommentRecord => ({
+const toRecord = ({ _count, video, photos, ...row }: Row): CommentRecord => ({
   ...row,
+  photos: toPhotoViews(photos),
   replyCount: _count.replies,
   video: video && {
     id: video.mediaId,

@@ -3,6 +3,7 @@ import { Prisma } from '../../generated/prisma/client.js';
 import { FollowStatus, PostAudience } from '../../generated/prisma/enums.js';
 import { notBlockedWith } from '../../prisma/block-filters.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { PHOTOS, toPhotoViews } from './photo-select.js';
 import { PhotoAlreadyUsedError } from './posts.errors.js';
 import type { AuthorAccess, PostsRepository } from './posts.repository.js';
 import type { NewPost, PostCursor, PostScope, PostRecord, QuotedPost } from './posts.types.js';
@@ -10,7 +11,6 @@ import type { LinkPreview } from '../links/link-preview.types.js';
 
 const AUTHOR = { id: true, username: true, displayName: true, avatarUrl: true, isPrivate: true } as const;
 const DISTRICT = { select: { id: true, name: true, colorFrom: true, colorTo: true } } as const;
-const PHOTOS = { select: { id: true, url: true }, orderBy: { position: 'asc' } } as const;
 const VIDEO = { select: { mediaId: true, url: true, durationSeconds: true, width: true, height: true } } as const;
 
 /** Post fields, plus whether `viewerId` liked or reposted it, and a quoted post with what's needed to check it's visible to them. */
@@ -79,7 +79,7 @@ function toQuoted(row: Row, viewerId: string): QuotedPost | null {
     createdAt: q.createdAt,
     author,
     district: toDistrict(q.district),
-    photos: q.photos,
+    photos: toPhotoViews(q.photos),
   };
 }
 
@@ -93,10 +93,12 @@ function toView(row: Row, viewerId: string): PostRecord {
     quotedPost: _quotedPost,
     linkPreview,
     video,
+    photos,
     ...post
   } = row;
   return {
     ...post,
+    photos: toPhotoViews(photos),
     video: video && {
       id: video.mediaId,
       url: video.url,

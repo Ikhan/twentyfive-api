@@ -1,6 +1,7 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import {
   FakeObjectStorage,
+  FakePhotoPreviewer,
   FakeVideoProbe,
   InMemoryMediaRepository,
   JPEG,
@@ -23,7 +24,12 @@ function setup() {
   const emitted: unknown[] = [];
   events.on(DomainEvent.UserPrivacyChanged, (e) => emitted.push(e));
   const storage = new FakeObjectStorage();
-  const media = new MediaService(new InMemoryMediaRepository(), storage, new FakeVideoProbe());
+  const media = new MediaService(
+    new InMemoryMediaRepository(),
+    storage,
+    new FakeVideoProbe(),
+    new FakePhotoPreviewer(),
+  );
   return { repo, events, emitted, storage, media, service: new UsersService(repo, events, media) };
 }
 

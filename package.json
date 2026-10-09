@@ -33,7 +33,8 @@
     "postdb:migrate": "prisma generate",
     "storage:init": "tsx scripts/init-storage.ts",
     "openapi:export": "nest build && node dist/export-openapi.js",
-    "dev:token": "tsx scripts/dev-token.ts"
+    "dev:token": "tsx scripts/dev-token.ts",
+    "media:backfill-previews": "tsx scripts/backfill-photo-previews.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1141.0",
@@ -58,6 +59,7 @@
     "pg": "^8.23.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
+    "sharp": "^0.35.5",
     "undici": "^8.11.2",
     "zod": "^4.6.5"
   },

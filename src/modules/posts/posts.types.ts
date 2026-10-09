@@ -9,9 +9,13 @@ export interface PostDistrict {
   colors: [string, string];
 }
 
+/** A post's photo, with its picture size and a tiny blurred stand-in to show while it loads (null for older photos). */
 export interface PostPhotoView {
   id: string;
   url: string;
+  width: number | null;
+  height: number | null;
+  placeholder: string | null;
 }
 
 /** A post's video: where to play it from, its length, and its picture size (for the player's shape). */
