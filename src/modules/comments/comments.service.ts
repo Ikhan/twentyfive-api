@@ -130,6 +130,20 @@ export class CommentsService {
     return comments.map((c) => ({ ...c, mentions: mentionedUsernames(c.body).filter((u) => known.has(u)) }));
   }
 
+  /**
+   * Like (`on`) or unlike a comment or reply on a post you can see; idempotent. Returns it with fresh counts.
+   */
+  async like(viewerId: string, commentId: string, on: boolean): Promise<CommentView> {
+    const owner = await this.comments.findOwnership(commentId);
+    if (!owner) throw new CommentNotFoundError();
+    await this.posts.get(owner.postId, viewerId);
+    if (!(await this.comments.find(commentId, viewerId))) throw new CommentNotFoundError();
+    await this.comments.setLike(commentId, viewerId, on);
+    const fresh = await this.comments.find(commentId, viewerId);
+    if (!fresh) throw new CommentNotFoundError(); // deleted meanwhile
+    return (await this.withMentions([fresh]))[0]!;
+  }
+
   /** The comment's author or the post's author may delete. Its replies go with it. */
   async remove(userId: string, commentId: string): Promise<void> {
     const comment = await this.comments.findOwnership(commentId);

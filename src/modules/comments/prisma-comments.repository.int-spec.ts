@@ -79,6 +79,32 @@ describe('PrismaCommentsRepository (integration)', () => {
     expect(await prisma.comment.count()).toBe(0);
   });
 
+  it('likes and unlikes comments (idempotently), counting them and telling each viewer if they liked it', async () => {
+    const c = await comments.create({ postId, authorId: arun, body: 'Nice' });
+    expect(c).toMatchObject({ likeCount: 0, viewer: { liked: false } });
+    await comments.setLike(c.id, kasun, true);
+    await comments.setLike(c.id, kasun, true);
+    await comments.setLike(c.id, arun, true);
+    expect(await comments.find(c.id, kasun)).toMatchObject({ likeCount: 2, viewer: { liked: true } });
+    await comments.setLike(c.id, kasun, false);
+    await comments.setLike(c.id, kasun, false);
+    expect(await comments.find(c.id, kasun)).toMatchObject({ likeCount: 1, viewer: { liked: false } });
+    expect((await comments.list(postId, arun, { take: 10 }))[0]).toMatchObject({
+      likeCount: 1,
+      viewer: { liked: true },
+    });
+    await comments.delete(c.id);
+    expect(await prisma.commentLike.count()).toBe(0);
+  });
+
+  it('finds a comment for a viewer, but not across a block', async () => {
+    const c = await comments.create({ postId, authorId: arun, body: 'Nice' });
+    expect(await comments.find(c.id, kasun)).toMatchObject({ id: c.id, body: 'Nice' });
+    await prisma.block.create({ data: { blockerId: kasun, blockedId: arun } });
+    expect(await comments.find(c.id, kasun)).toBeNull();
+    expect(await comments.find('00000000-0000-4000-8000-000000000000', kasun)).toBeNull();
+  });
+
   it('removes comments with their post', async () => {
     await comments.create({ postId, authorId: arun, body: 'Nice' });
     await prisma.post.delete({ where: { id: postId } });

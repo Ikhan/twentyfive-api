@@ -7,10 +7,12 @@ import type {
   NewComment,
 } from '../../src/modules/comments/comments.types.js';
 
-type Stored = Omit<CommentRecord, 'replyCount'> & { postAuthorId: string };
+type Stored = Omit<CommentRecord, 'replyCount' | 'likeCount' | 'viewer'> & { postAuthorId: string };
 
 export class InMemoryCommentsRepository implements CommentsRepository {
   readonly comments: Stored[] = [];
+  /** `${commentId}|${userId}` for each like. */
+  readonly likes = new Set<string>();
   private clock = Date.parse('2026-09-01T00:00:00Z');
 
   /** Post authors, so ownership checks work without a posts store. */
@@ -49,12 +51,12 @@ export class InMemoryCommentsRepository implements CommentsRepository {
       },
     };
     this.comments.push(stored);
-    return this.record(stored);
+    return this.record(stored, authorId);
   }
 
   async list(
     postId: string,
-    _viewerId: string,
+    viewerId: string,
     { after, take, parentId = null }: { after?: CommentCursor; take: number; parentId?: string | null },
   ): Promise<CommentRecord[]> {
     const key = (c: Stored) => `${c.createdAt.toISOString()}|${c.id}`;
@@ -62,7 +64,17 @@ export class InMemoryCommentsRepository implements CommentsRepository {
       .filter((c) => c.postId === postId && c.parentId === parentId && (!after || key(c) > `${after.t}|${after.id}`))
       .toSorted((a, b) => key(a).localeCompare(key(b)))
       .slice(0, take)
-      .map((c) => this.record(c));
+      .map((c) => this.record(c, viewerId));
+  }
+
+  async find(commentId: string, viewerId: string): Promise<CommentRecord | null> {
+    const c = this.comments.find((x) => x.id === commentId);
+    return c ? this.record(c, viewerId) : null;
+  }
+
+  async setLike(commentId: string, userId: string, on: boolean): Promise<void> {
+    if (on) this.likes.add(`${commentId}|${userId}`);
+    else this.likes.delete(`${commentId}|${userId}`);
   }
 
   async findOwnership(commentId: string): Promise<CommentOwnership | null> {
@@ -80,7 +92,13 @@ export class InMemoryCommentsRepository implements CommentsRepository {
     }
   }
 
-  private record({ postAuthorId: _p, ...c }: Stored): CommentRecord {
-    return { ...c, replyCount: this.comments.filter((r) => r.parentId === c.id).length };
+  private record({ postAuthorId: _p, ...c }: Stored, viewerId: string): CommentRecord {
+    const likers = [...this.likes].filter((k) => k.startsWith(`${c.id}|`));
+    return {
+      ...c,
+      replyCount: this.comments.filter((r) => r.parentId === c.id).length,
+      likeCount: likers.length,
+      viewer: { liked: likers.includes(`${c.id}|${viewerId}`) },
+    };
   }
 }

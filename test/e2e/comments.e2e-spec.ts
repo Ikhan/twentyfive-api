@@ -53,6 +53,22 @@ describe('Comments (e2e)', () => {
     expect(read.body.data.counts).toMatchObject({ comments: 2 });
   });
 
+  it('likes and unlikes comments, on posts you can see', async () => {
+    const postId = await post(kasun, 'Perahera tonight');
+    const id = (await comment(arun, postId, 'See you there').expect(201)).body.data.id as string;
+    const liked = await http().put(`/api/v1/comments/${id}/like`).set('Authorization', kasun.auth).expect(200);
+    expect(liked.body.data).toMatchObject({ id, likeCount: 1, viewer: { liked: true } });
+    const list = await http().get(`/api/v1/posts/${postId}/comments`).set('Authorization', arun.auth).expect(200);
+    expect(list.body.data[0]).toMatchObject({ likeCount: 1, viewer: { liked: false } });
+    const unliked = await http().delete(`/api/v1/comments/${id}/like`).set('Authorization', kasun.auth).expect(200);
+    expect(unliked.body.data).toMatchObject({ likeCount: 0, viewer: { liked: false } });
+
+    const secret = await post(sachini, 'Only followers');
+    const hidden = (await comment(sachini, secret, 'Shh').expect(201)).body.data.id as string;
+    await http().put(`/api/v1/comments/${hidden}/like`).set('Authorization', arun.auth).expect(404);
+    await http().put(`/api/v1/comments/${id}/like`).expect(401);
+  });
+
   it('validates comments', async () => {
     const postId = await post(kasun, 'hi');
     await comment(arun, postId, '   ').expect(400);

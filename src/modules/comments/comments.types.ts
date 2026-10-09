@@ -14,6 +14,9 @@ export interface CommentRecord {
   /** Like posts: up to 4 photos, or one video. */
   photos: PostPhotoView[];
   video: PostVideoView | null;
+  likeCount: number;
+  /** The signed-in viewer's own reaction. */
+  viewer: { liked: boolean };
 }
 
 export interface CommentView extends CommentRecord {

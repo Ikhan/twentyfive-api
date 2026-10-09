@@ -83,6 +83,7 @@ model User {
   posts           Post[]
   comments        Comment[]
   postLikes       PostLike[]
+  commentLikes    CommentLike[]
   reposts         Repost[]
   notifications   Notification[]   @relation("recipient")
   notified        Notification[]   @relation("actor")
@@ -293,6 +294,7 @@ model Comment {
   photos        CommentPhoto[]
   video         CommentVideo?
   notifications Notification[]
+  likes         CommentLike[]
 
   @@index([postId, createdAt, id])
   @@index([parentId, createdAt, id])
@@ -328,6 +330,19 @@ model CommentVideo {
 }
 
 /// One like per user per post.
+/// Someone liked a comment or reply (like PostLike).
+model CommentLike {
+  userId    String   @map("user_id") @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  commentId String   @map("comment_id") @db.Uuid
+  comment   Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@id([userId, commentId])
+  @@index([commentId])
+  @@map("comment_likes")
+}
+
 model PostLike {
   userId    String   @map("user_id") @db.Uuid
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
