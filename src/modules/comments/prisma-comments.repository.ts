@@ -17,15 +17,18 @@ const select = (viewerId: string) =>
     author: { select: { id: true, username: true, displayName: true, avatarUrl: true, isPrivate: true } },
     photos: PHOTOS,
     video: { select: { mediaId: true, url: true, durationSeconds: true, width: true, height: true } },
-    _count: { select: { replies: { where: { author: notBlockedWith(viewerId) } } } },
+    _count: { select: { replies: { where: { author: notBlockedWith(viewerId) } }, likes: true } },
+    likes: { where: { userId: viewerId }, select: { userId: true }, take: 1 },
   }) as const satisfies Prisma.CommentSelect;
 
 type Row = Prisma.CommentGetPayload<{ select: ReturnType<typeof select> }>;
 
-const toRecord = ({ _count, video, photos, ...row }: Row): CommentRecord => ({
+const toRecord = ({ _count, video, photos, likes, ...row }: Row): CommentRecord => ({
   ...row,
   photos: toPhotoViews(photos),
   replyCount: _count.replies,
+  likeCount: _count.likes,
+  viewer: { liked: likes.length > 0 },
   video: video && {
     id: video.mediaId,
     url: video.url,
@@ -69,6 +72,19 @@ export class PrismaCommentsRepository implements CommentsRepository {
       take,
     });
     return rows.map(toRecord);
+  }
+
+  async find(commentId: string, viewerId: string): Promise<CommentRecord | null> {
+    const row = await this.prisma.comment.findFirst({
+      where: { id: commentId, author: notBlockedWith(viewerId) },
+      select: select(viewerId),
+    });
+    return row && toRecord(row);
+  }
+
+  async setLike(commentId: string, userId: string, on: boolean): Promise<void> {
+    if (on) await this.prisma.commentLike.createMany({ data: [{ commentId, userId }], skipDuplicates: true });
+    else await this.prisma.commentLike.deleteMany({ where: { commentId, userId } });
   }
 
   async findOwnership(commentId: string): Promise<CommentOwnership | null> {

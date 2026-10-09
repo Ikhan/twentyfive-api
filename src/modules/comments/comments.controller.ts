@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Post, Put, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Paginated } from '../../common/api-response.js';
 import type { AuthUser } from '../../common/auth-user.js';
@@ -41,6 +41,18 @@ export class CommentsController {
     @Query() page: PageQueryDto,
   ): Promise<Paginated<CommentView>> {
     return this.comments.replies(user.id, commentId, page);
+  }
+
+  @Put('comments/:id/like')
+  @ApiOperation({ summary: 'Like a comment or reply' })
+  like(@CurrentUser() user: AuthUser, @Param('id', new ParseUUIDPipe()) id: string): Promise<CommentView> {
+    return this.comments.like(user.id, id, true);
+  }
+
+  @Delete('comments/:id/like')
+  @ApiOperation({ summary: 'Unlike a comment or reply' })
+  unlike(@CurrentUser() user: AuthUser, @Param('id', new ParseUUIDPipe()) id: string): Promise<CommentView> {
+    return this.comments.like(user.id, id, false);
   }
 
   @Delete('comments/:id')

@@ -239,4 +239,49 @@ describe('CommentsService', () => {
       );
     });
   });
+
+  describe('likes', () => {
+    it('starts at no likes, likes and unlikes (idempotently), returning the comment with fresh counts', async () => {
+      const { service, publicPost } = await setup();
+      const comment = await service.add('u-arun', publicPost.id, 'So good!');
+      expect(comment).toMatchObject({ likeCount: 0, viewer: { liked: false } });
+      await expect(service.like('u-kasun', comment.id, true)).resolves.toMatchObject({
+        id: comment.id,
+        body: 'So good!',
+        mentions: [],
+        likeCount: 1,
+        viewer: { liked: true },
+      });
+      await expect(service.like('u-kasun', comment.id, true)).resolves.toMatchObject({ likeCount: 1 });
+      await expect(service.like('u-kasun', comment.id, false)).resolves.toMatchObject({
+        likeCount: 0,
+        viewer: { liked: false },
+      });
+      await expect(service.like('u-kasun', comment.id, false)).resolves.toMatchObject({ likeCount: 0 });
+    });
+
+    it('shows everyone the count, and each person whether they liked it', async () => {
+      const { service, publicPost } = await setup();
+      const comment = await service.add('u-arun', publicPost.id, 'So good!');
+      await service.like('u-kasun', comment.id, true);
+      const [seenByArun] = (await service.list('u-arun', publicPost.id, { limit: 10 })).items;
+      expect(seenByArun).toMatchObject({ likeCount: 1, viewer: { liked: false } });
+    });
+
+    it('likes replies too', async () => {
+      const { service, publicPost } = await setup();
+      const top = await service.add('u-arun', publicPost.id, 'Top');
+      const reply = await service.add('u-kasun', publicPost.id, 'Reply', top.id);
+      await expect(service.like('u-arun', reply.id, true)).resolves.toMatchObject({ parentId: top.id, likeCount: 1 });
+    });
+
+    it('needs a comment that exists, on a post you can see', async () => {
+      const { service, privatePost } = await setup();
+      await expect(service.like('u-kasun', '00000000-0000-4000-8000-000000000000', true)).rejects.toThrow(
+        CommentNotFoundError,
+      );
+      const secret = await service.add('u-sachini', privatePost.id, 'Shh');
+      await expect(service.like('u-arun', secret.id, true)).rejects.toThrow(PostNotFoundError);
+    });
+  });
 });

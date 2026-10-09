@@ -11,7 +11,11 @@ export interface CommentsRepository {
     viewerId: string,
     page: { after?: CommentCursor; take: number; parentId?: string | null },
   ): Promise<CommentRecord[]>;
+  /** One comment as `viewerId` sees it; null if it doesn't exist or is across a block with them. */
+  find(commentId: string, viewerId: string): Promise<CommentRecord | null>;
   findOwnership(commentId: string): Promise<CommentOwnership | null>;
+  /** Like (`on`) or unlike; idempotent. */
+  setLike(commentId: string, userId: string, on: boolean): Promise<void>;
   /** Also deletes its replies. */
   delete(commentId: string): Promise<void>;
 }
