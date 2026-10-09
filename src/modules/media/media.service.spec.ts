@@ -1,5 +1,6 @@
 import {
   FakeObjectStorage,
+  FakePhotoPreviewer,
   FakeVideoProbe,
   HTML,
   InMemoryMediaRepository,
@@ -16,7 +17,8 @@ const MB = 1024 * 1024;
 function setup() {
   const repo = new InMemoryMediaRepository();
   const storage = new FakeObjectStorage();
-  return { repo, storage, service: new MediaService(repo, storage, new FakeVideoProbe()) };
+  const previews = new FakePhotoPreviewer();
+  return { repo, storage, previews, service: new MediaService(repo, storage, new FakeVideoProbe(), previews) };
 }
 
 /** Reserve an upload and simulate the browser putting `bytes` into storage. */
@@ -121,6 +123,34 @@ describe('MediaService', () => {
       await expect(ctx.service.complete('u1', ticket.mediaId)).rejects.toThrow('too large');
       expect(ctx.storage.objects.size).toBe(0);
     });
+
+    it('stores a post photo’s size and blurred preview, read from the whole file', async () => {
+      const ctx = setup();
+      const ticket = await upload(ctx, JPEG, 2000);
+      await ctx.service.complete('u1', ticket.mediaId);
+      expect(ctx.previews.seen).toEqual([2000]);
+      expect(ctx.repo.rows.get(ticket.mediaId)).toMatchObject({
+        status: 'READY',
+        photo: { width: 1200, height: 800, placeholder: 'data:image/webp;base64,AAAA' },
+        video: null,
+      });
+    });
+
+    it('still accepts a photo it couldn’t make a preview for', async () => {
+      const ctx = setup();
+      ctx.previews.result = null;
+      const ticket = await upload(ctx);
+      await expect(ctx.service.complete('u1', ticket.mediaId)).resolves.toMatchObject({ id: ticket.mediaId });
+      expect(ctx.repo.rows.get(ticket.mediaId)).toMatchObject({ status: 'READY', photo: null });
+    });
+
+    it('doesn’t make previews for avatars', async () => {
+      const ctx = setup();
+      const ticket = await upload(ctx, JPEG, 2000, 'image/jpeg', 'AVATAR');
+      await ctx.service.complete('u1', ticket.mediaId);
+      expect(ctx.previews.seen).toEqual([]);
+      expect(ctx.repo.rows.get(ticket.mediaId)).toMatchObject({ status: 'READY', photo: null });
+    });
   });
 
   describe('claim', () => {
@@ -152,7 +182,7 @@ describe('MediaService', () => {
     function videoSetup() {
       const repo = new InMemoryMediaRepository();
       const storage = new FakeObjectStorage();
-      return { repo, storage, service: new MediaService(repo, storage, probe) };
+      return { repo, storage, service: new MediaService(repo, storage, probe, new FakePhotoPreviewer()) };
     }
 
     async function uploadVideo(ctx: ReturnType<typeof videoSetup>, bytes: Uint8Array, contentType = 'video/mp4') {

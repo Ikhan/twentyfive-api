@@ -1,3 +1,4 @@
+import type { PhotoPreview } from './photo-preview.js';
 import type { VideoDetails } from './video-probe.js';
 
 export type MediaPurpose = 'POST_PHOTO' | 'AVATAR' | 'HEADER' | 'POST_VIDEO';
@@ -13,6 +14,8 @@ export interface MediaRecord {
   sizeBytes: number | null;
   /** Videos: length and picture size, once verified. */
   video: VideoDetails | null;
+  /** Post photos: picture size and blurred stand-in, once verified (null if it couldn't be made). */
+  photo: PhotoPreview | null;
 }
 
 /** A verified photo or video, as returned to clients and attached to posts or avatars. */

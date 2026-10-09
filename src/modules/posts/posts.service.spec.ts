@@ -1,5 +1,11 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { FakeObjectStorage, FakeVideoProbe, InMemoryMediaRepository, JPEG } from '../../../test/fakes/media-fakes.js';
+import {
+  FakeObjectStorage,
+  FakePhotoPreviewer,
+  FakeVideoProbe,
+  InMemoryMediaRepository,
+  JPEG,
+} from '../../../test/fakes/media-fakes.js';
 import { FakeLinkPreviews, InMemoryPostsRepository } from '../../../test/fakes/posts-fakes.js';
 import { NotFoundError, ValidationError } from '../../common/errors/app-error.js';
 import { DomainEvent } from '../../common/events/domain-events.js';
@@ -18,7 +24,7 @@ function setup() {
   const repo = new InMemoryPostsRepository();
   const storage = new FakeObjectStorage();
   const videos = new FakeVideoProbe();
-  const media = new MediaService(new InMemoryMediaRepository(), storage, videos);
+  const media = new MediaService(new InMemoryMediaRepository(), storage, videos, new FakePhotoPreviewer());
   const events = new EventEmitter2();
   const quoted: unknown[] = [];
   events.on(DomainEvent.PostQuoted, (e) => quoted.push(e));

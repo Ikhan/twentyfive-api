@@ -3,6 +3,7 @@ import { MediaStatus } from '../../generated/prisma/enums.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { MediaRepository } from './media.repository.js';
 import type { MediaPurpose, MediaRecord } from './media.types.js';
+import type { PhotoPreview } from './photo-preview.js';
 import type { VideoDetails } from './video-probe.js';
 
 const SELECT = {
@@ -16,20 +17,27 @@ const SELECT = {
   durationSeconds: true,
   width: true,
   height: true,
+  placeholder: true,
 } as const;
 
-type Row = { durationSeconds: number | null; width: number | null; height: number | null } & Omit<MediaRecord, 'video'>;
+type Row = {
+  durationSeconds: number | null;
+  width: number | null;
+  height: number | null;
+  placeholder: string | null;
+} & Omit<MediaRecord, 'video' | 'photo'>;
 
-const toRecord = ({ durationSeconds, width, height, ...media }: Row): MediaRecord => ({
+const toRecord = ({ durationSeconds, width, height, placeholder, ...media }: Row): MediaRecord => ({
   ...media,
   video: durationSeconds !== null && width !== null && height !== null ? { durationSeconds, width, height } : null,
+  photo: placeholder !== null && width !== null && height !== null ? { width, height, placeholder } : null,
 });
 
 @Injectable()
 export class PrismaMediaRepository implements MediaRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(media: Omit<MediaRecord, 'status' | 'sizeBytes' | 'video'>): Promise<MediaRecord> {
+  async create(media: Omit<MediaRecord, 'status' | 'sizeBytes' | 'video' | 'photo'>): Promise<MediaRecord> {
     return toRecord(await this.prisma.media.create({ data: media, select: SELECT }));
   }
 
@@ -38,10 +46,14 @@ export class PrismaMediaRepository implements MediaRepository {
     return row && toRecord(row);
   }
 
-  async markReady(id: string, sizeBytes: number, video: VideoDetails | null = null): Promise<MediaRecord> {
+  async markReady(
+    id: string,
+    sizeBytes: number,
+    details: VideoDetails | PhotoPreview | null = null,
+  ): Promise<MediaRecord> {
     const row = await this.prisma.media.update({
       where: { id },
-      data: { status: MediaStatus.READY, sizeBytes, readyAt: new Date(), ...video },
+      data: { status: MediaStatus.READY, sizeBytes, readyAt: new Date(), ...details },
       select: SELECT,
     });
     return toRecord(row);

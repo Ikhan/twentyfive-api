@@ -87,7 +87,7 @@ describe('PrismaPostsRepository (integration)', () => {
     expect((await posts.findVisible(created.id, u.arun!))!.district).toBeNull();
   });
 
-  it('creates a post with its author, district colours and ordered photos', async () => {
+  it('creates a post with its author, district colours and ordered photos (with their previews)', async () => {
     const mediaIds = [randomUUID(), randomUUID()];
     for (const id of mediaIds) {
       await prisma.media.create({
@@ -111,12 +111,26 @@ describe('PrismaPostsRepository (integration)', () => {
         { mediaId: mediaIds[0]!, url: 'https://cdn/1.jpg' },
       ],
     });
+    await prisma.media.update({
+      where: { id: mediaIds[1]! },
+      data: { width: 1200, height: 800, placeholder: 'data:image/webp;base64,AAAA' },
+    });
     expect(created).toMatchObject({
       body: 'Perahera',
       author: { username: 'kasun', isPrivate: false },
       district: { id: 'kandy', name: 'Kandy', colors: [expect.stringMatching(/^#/), expect.stringMatching(/^#/)] },
       photos: [{ url: 'https://cdn/2.jpg' }, { url: 'https://cdn/1.jpg' }],
     });
+    expect((await posts.findVisible(created.id, u.kasun!))!.photos).toEqual([
+      {
+        id: expect.any(String),
+        url: 'https://cdn/2.jpg',
+        width: 1200,
+        height: 800,
+        placeholder: 'data:image/webp;base64,AAAA',
+      },
+      { id: expect.any(String), url: 'https://cdn/1.jpg', width: null, height: null, placeholder: null },
+    ]);
     await expect(
       posts.create({
         authorId: u.arun!,

@@ -1,6 +1,12 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InMemoryCommentsRepository } from '../../../test/fakes/comments-fakes.js';
-import { FakeObjectStorage, FakeVideoProbe, InMemoryMediaRepository, JPEG } from '../../../test/fakes/media-fakes.js';
+import {
+  FakeObjectStorage,
+  FakePhotoPreviewer,
+  FakeVideoProbe,
+  InMemoryMediaRepository,
+  JPEG,
+} from '../../../test/fakes/media-fakes.js';
 import { FakeLinkPreviews, InMemoryPostsRepository } from '../../../test/fakes/posts-fakes.js';
 import { ValidationError } from '../../common/errors/app-error.js';
 import { DomainEvent } from '../../common/events/domain-events.js';
@@ -14,7 +20,7 @@ async function setup() {
   const posts = new InMemoryPostsRepository();
   const storage = new FakeObjectStorage();
   const videos = new FakeVideoProbe();
-  const media = new MediaService(new InMemoryMediaRepository(), storage, videos);
+  const media = new MediaService(new InMemoryMediaRepository(), storage, videos, new FakePhotoPreviewer());
   const postsService = new PostsService(posts, media, new EventEmitter2(), new FakeLinkPreviews());
   const repo = new InMemoryCommentsRepository((id) => posts.posts.find((p) => p.id === id)!.author.id);
   const events = new EventEmitter2();
@@ -95,7 +101,12 @@ describe('CommentsService', () => {
     const events = new EventEmitter2();
     const mentioned: unknown[] = [];
     events.on(DomainEvent.UsersMentioned, (e) => mentioned.push(e));
-    const media = new MediaService(new InMemoryMediaRepository(), new FakeObjectStorage(), new FakeVideoProbe());
+    const media = new MediaService(
+      new InMemoryMediaRepository(),
+      new FakeObjectStorage(),
+      new FakeVideoProbe(),
+      new FakePhotoPreviewer(),
+    );
     const postsService = new PostsService(posts, media, events, new FakeLinkPreviews());
     const repo = new InMemoryCommentsRepository((id) => posts.posts.find((p) => p.id === id)!.author.id);
     const service = new CommentsService(repo, postsService, events, media);

@@ -1,9 +1,10 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { InvalidUploadError, MediaNotFoundError } from './media.errors.js';
 import { MEDIA_REPOSITORY, type MediaRepository } from './media.repository.js';
 import type { MediaPurpose, MediaRecord, MediaView, UploadTicket } from './media.types.js';
 import { ALLOWED_IMAGE_TYPES, detectImageType, EXTENSION, SIGNATURE_BYTES, type ImageType } from './image-signature.js';
+import { PHOTO_PREVIEWER, type PhotoPreview, type PhotoPreviewer } from './photo-preview.js';
 import { OBJECT_STORAGE, type ObjectStorage } from './storage/object-storage.js';
 import { VIDEO_PROBE, type VideoDetails, type VideoProbe } from './video-probe.js';
 import { ALLOWED_VIDEO_TYPES, isVideoOfType, VIDEO_EXTENSION, type VideoType } from './video-signature.js';
@@ -24,10 +25,13 @@ const isVideoPurpose = (purpose: MediaPurpose) => purpose === 'POST_VIDEO';
 
 @Injectable()
 export class MediaService {
+  private readonly logger = new Logger(MediaService.name);
+
   constructor(
     @Inject(MEDIA_REPOSITORY) private readonly media: MediaRepository,
     @Inject(OBJECT_STORAGE) private readonly storage: ObjectStorage,
     @Inject(VIDEO_PROBE) private readonly videos: VideoProbe,
+    @Inject(PHOTO_PREVIEWER) private readonly previews: PhotoPreviewer,
   ) {}
 
   /** Step 1: reserve a photo or video and hand the browser a short-lived, locked-down upload form. */
@@ -63,7 +67,8 @@ export class MediaService {
 
   /**
    * Step 3: confirm the upload landed, is within limits and really is the type claimed. For videos, also
-   * read their length from the file (at most 10 minutes) and picture size. Idempotent.
+   * read their length from the file (at most 10 minutes) and picture size; for post photos, make the blurred
+   * preview shown while they load. Idempotent.
    */
   async complete(ownerId: string, mediaId: string): Promise<MediaView> {
     const media = await this.media.findById(mediaId);
@@ -80,7 +85,8 @@ export class MediaService {
     if (!video) {
       if (detectImageType(prefix) !== media.contentType)
         return this.reject(media, 'That file isn’t a valid JPEG, PNG or WebP photo.');
-      return this.view(await this.media.markReady(media.id, info.sizeBytes));
+      const preview = media.purpose === 'POST_PHOTO' ? await this.preview(media, info.sizeBytes) : null;
+      return this.view(await this.media.markReady(media.id, info.sizeBytes, preview));
     }
 
     const details = isVideoOfType(prefix, media.contentType as VideoType)
@@ -115,6 +121,13 @@ export class MediaService {
     } catch {
       return null;
     }
+  }
+
+  /** A photo without a preview still posts; it just loads without the blur-up. */
+  private async preview(media: MediaRecord, sizeBytes: number): Promise<PhotoPreview | null> {
+    const preview = await this.previews.preview(await this.storage.readRange(media.key, 0, sizeBytes));
+    if (!preview) this.logger.warn(`Couldn’t make a preview for photo ${media.id} (${media.contentType})`);
+    return preview;
   }
 
   private async reject(media: MediaRecord, message: string): Promise<never> {
