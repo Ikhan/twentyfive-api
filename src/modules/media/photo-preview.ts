@@ -5,7 +5,7 @@ import sharp from 'sharp';
 export interface PhotoPreview {
   width: number;
   height: number;
-  /** A ~16px WebP as a data: URL (a few hundred bytes), sent inline with the post. */
+  /** A 64px WebP as a data: URL (under a kilobyte for a typical photo), sent inline with the post. */
   placeholder: string;
 }
 
@@ -16,8 +16,11 @@ export interface PhotoPreviewer {
 
 export const PHOTO_PREVIEWER = Symbol('PHOTO_PREVIEWER');
 
-/** The preview's longer side, in pixels. Browsers blur it up to the photo's size. */
-export const PREVIEW_PIXELS = 16;
+/**
+ * The preview's longer side, in pixels: enough to make out people and places behind a light blur
+ * (like Twitter's "Load image"), still small enough to send with every post.
+ */
+export const PREVIEW_PIXELS = 64;
 
 @Injectable()
 export class SharpPhotoPreviewer implements PhotoPreviewer {
@@ -27,7 +30,7 @@ export class SharpPhotoPreviewer implements PhotoPreviewer {
       const tiny = await sharp(bytes)
         .rotate()
         .resize(PREVIEW_PIXELS, PREVIEW_PIXELS, { fit: 'inside' })
-        .webp({ quality: 40 })
+        .webp({ quality: 50 })
         .toBuffer();
       return {
         width: autoOrient.width,

@@ -15,7 +15,11 @@ describe('SharpPhotoPreviewer', () => {
     expect(preview!.placeholder).toMatch(/^data:image\/webp;base64,/);
     const tiny = await sharp(Buffer.from(preview!.placeholder.split(',')[1]!, 'base64')).metadata();
     expect(tiny).toMatchObject({ width: PREVIEW_PIXELS, height: Math.round((PREVIEW_PIXELS * 800) / 1200) });
-    expect(preview!.placeholder.length).toBeLessThan(1000);
+    expect(preview!.placeholder.length).toBeLessThan(2000);
+  });
+
+  it('is detailed enough to make out what’s in the photo', () => {
+    expect(PREVIEW_PIXELS).toBe(64);
   });
 
   it('works for PNG and WebP too', async () => {
