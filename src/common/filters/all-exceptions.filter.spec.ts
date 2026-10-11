@@ -3,10 +3,13 @@ import { ThrottlerException } from '@nestjs/throttler';
 import { ConflictError, NotFoundError } from '../errors/app-error.js';
 import { AllExceptionsFilter } from './all-exceptions.filter.js';
 
-function run(exception: unknown) {
+/** `request` is what the request logger leaves on it: `id` once it has run. */
+function run(exception: unknown, request: { id?: unknown } = {}) {
   const json = vi.fn();
   const status = vi.fn((_code: number) => ({ json }));
-  const host = { switchToHttp: () => ({ getResponse: () => ({ status }) }) } as unknown as ArgumentsHost;
+  const host = {
+    switchToHttp: () => ({ getResponse: () => ({ status }), getRequest: () => request }),
+  } as unknown as ArgumentsHost;
   new AllExceptionsFilter().catch(exception, host);
   return { status: status.mock.calls[0]?.[0], body: json.mock.calls[0]?.[0] };
 }
@@ -16,6 +19,14 @@ describe('AllExceptionsFilter', () => {
     expect(run(new NotFoundError('Post not found'))).toEqual({
       status: HttpStatus.NOT_FOUND,
       body: { success: false, data: null, error: { code: 'NOT_FOUND', message: 'Post not found' } },
+    });
+  });
+
+  it('adds the request id, when the request logger gave it one, so users can quote it', () => {
+    expect(run(new NotFoundError('Post not found'), { id: 'req-12345678' }).body.error).toEqual({
+      code: 'NOT_FOUND',
+      message: 'Post not found',
+      requestId: 'req-12345678',
     });
   });
 

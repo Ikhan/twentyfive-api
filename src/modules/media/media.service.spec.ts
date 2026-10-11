@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import {
   FakeObjectStorage,
   FakePhotoPreviewer,
@@ -234,6 +235,18 @@ describe('MediaService', () => {
       await expect(ctx.service.claim('u1', [ticket.mediaId], 'POST_VIDEO')).resolves.toMatchObject([
         { id: ticket.mediaId, video: { durationSeconds: 2 } },
       ]);
+    });
+
+    it('logs why a video couldn’t be read, while telling the user only that it can’t be played', async () => {
+      const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => {});
+      const broken = { probe: () => Promise.reject(new Error('mediainfo crashed')) };
+      const repo = new InMemoryMediaRepository();
+      const storage = new FakeObjectStorage();
+      const ctx = { repo, storage, service: new MediaService(repo, storage, broken, new FakePhotoPreviewer()) };
+      const ticket = await uploadVideo(ctx, fixture('short.mp4'));
+      await expect(ctx.service.complete('u1', ticket.mediaId)).rejects.toThrow('That file isn’t a video we can play');
+      expect(warn).toHaveBeenCalledWith(expect.stringMatching(new RegExp(`${ticket.mediaId}.*mediainfo crashed`)));
+      warn.mockRestore();
     });
 
     it('refuses videos over 10 minutes, and files that aren’t really videos, deleting them', async () => {

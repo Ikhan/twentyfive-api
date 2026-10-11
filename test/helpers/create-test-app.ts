@@ -20,6 +20,7 @@ export async function createTestApp(options: TestAppOptions = {}): Promise<INest
     NODE_ENV: 'test',
     DATABASE_URL: TEST_DATABASE_URL,
     JWT_ACCESS_SECRET: TEST_JWT_SECRET,
+    LOG_LEVEL: 'silent',
     ...options.env,
   });
   const { AppModule } = await import('../../src/app.module.js');

@@ -79,7 +79,11 @@ describe('App (e2e)', () => {
 
   it('hides internal error details', async () => {
     const res = await http().get('/api/v1/test-probe/boom').expect(500);
-    expect(res.body.error).toEqual({ code: 'INTERNAL_ERROR', message: 'Something went wrong. Please try again.' });
+    expect(res.body.error).toEqual({
+      code: 'INTERNAL_ERROR',
+      message: 'Something went wrong. Please try again.',
+      requestId: res.headers['x-request-id'],
+    });
   });
 
   it('rate-limits clients (health is exempt)', async () => {
