@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { LoggerModule } from 'nestjs-pino';
+import { loggerModuleParams } from './common/logging/logger.options.js';
 import { AppConfigModule } from './config/config.module.js';
 import { AppConfigService } from './config/app-config.service.js';
 import { AuthModule } from './modules/auth/auth.module.js';
@@ -20,6 +22,12 @@ import { PrismaModule } from './prisma/prisma.module.js';
 @Module({
   imports: [
     AppConfigModule,
+    // JSON request logs with request ids; Nest's own logs go through it too (see main.ts).
+    LoggerModule.forRootAsync({
+      inject: [AppConfigService],
+      useFactory: (config: AppConfigService) =>
+        loggerModuleParams({ level: config.get('LOG_LEVEL'), pretty: config.get('NODE_ENV') === 'development' }),
+    }),
     PrismaModule,
     EventEmitterModule.forRoot(),
     ThrottlerModule.forRootAsync({

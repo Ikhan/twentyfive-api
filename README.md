@@ -42,6 +42,17 @@ API docs (non-production): http://localhost:3000/api/docs
 - **Database**: Prisma 7 with the `pg` driver adapter; the client is generated into `src/generated/prisma` (git-ignored).
   Each feature adds its own models in its own migration.
 
+## Logs
+
+- **One line per request** (method, path without its query, status, response time, request id, signed-in
+  `userId`), as JSON outside development and readable lines in development. 5xx log as `error`, 4xx as
+  `warn`; `/health` isn't logged. `LOG_LEVEL` sets how much (`info` by default, `silent` in tests).
+- **Request ids**: each request gets an `x-request-id` (or keeps a sensible one from the load balancer), sent
+  back as a header and as `error.requestId` in error responses. Every log line during the request carries it,
+  so a user quoting it leads straight to what happened.
+- **Never logged**: login tokens, cookies, the CSRF header, `Set-Cookie`, and query strings (OAuth codes).
+- Unexpected errors are logged with their stack; users only see a generic message and the request id.
+
 ## Authentication
 
 Sign-in is social only (Google and Facebook), using OAuth 2.0 authorization code + PKCE.

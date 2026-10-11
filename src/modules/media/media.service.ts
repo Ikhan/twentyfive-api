@@ -118,7 +118,11 @@ export class MediaService {
   private async probe(media: MediaRecord, sizeBytes: number): Promise<VideoDetails | null> {
     try {
       return await this.videos.probe(sizeBytes, (offset, length) => this.storage.readRange(media.key, offset, length));
-    } catch {
+    } catch (error) {
+      // The user is only told it can't be played; the reason is for us.
+      this.logger.warn(
+        `Couldn’t read video ${media.id} (${media.contentType}, ${sizeBytes} bytes): ${error instanceof Error ? error.message : String(error)}`,
+      );
       return null;
     }
   }

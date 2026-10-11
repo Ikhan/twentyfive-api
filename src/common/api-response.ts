@@ -6,6 +6,8 @@ export interface ApiError {
   message: string;
   /** Optional structured detail, e.g. per-field validation messages. */
   details?: unknown;
+  /** The request's id (also in the x-request-id header): quote it to find the request in the logs. */
+  requestId?: string;
 }
 
 export interface PageMeta {

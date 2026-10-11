@@ -23,9 +23,16 @@ export class AllExceptionsFilter implements ExceptionFilter {
   private readonly logger = new Logger(AllExceptionsFilter.name);
 
   catch(exception: unknown, host: ArgumentsHost): void {
-    const response = host.switchToHttp().getResponse<Response>();
+    const http = host.switchToHttp();
+    const response = http.getResponse<Response>();
+    // Set by the request logger (pino-http), which also sends it back in the x-request-id header.
+    const requestId = http.getRequest<{ id?: unknown }>().id;
     const { status, error } = this.toApiError(exception);
-    const body: ApiResponse<null> = { success: false, data: null, error };
+    const body: ApiResponse<null> = {
+      success: false,
+      data: null,
+      error: typeof requestId === 'string' ? { ...error, requestId } : error,
+    };
     response.status(status).json(body);
   }
 
