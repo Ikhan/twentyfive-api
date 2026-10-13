@@ -37,6 +37,12 @@ export class WaitlistEntryNotFoundError extends NotFoundError {
   }
 }
 
+export class AlreadyJoinedError extends ConflictError {
+  constructor() {
+    super('They’ve already joined with their invite.');
+  }
+}
+
 export class AccountNotFoundError extends NotFoundError {
   constructor() {
     super('No account with that username.');
