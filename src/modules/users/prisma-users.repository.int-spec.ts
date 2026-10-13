@@ -28,6 +28,7 @@ describe('PrismaUsersRepository (integration)', () => {
       hometown: { id: 'kandy', name: 'Kandy' },
       isPrivate: false,
       onboarded: false,
+      isAdmin: false,
       joinedAt: row.createdAt,
     });
     expect(byId).not.toHaveProperty('email');

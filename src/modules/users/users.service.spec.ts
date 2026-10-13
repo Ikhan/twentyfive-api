@@ -45,6 +45,7 @@ describe('UsersService', () => {
     const result = await service.byUsername('Tharushi');
     expect(result).toMatchObject({ username: 'tharushi', displayName: 'Tharushi' });
     expect(result).not.toHaveProperty('onboarded');
+    expect(result).not.toHaveProperty('isAdmin');
     await expect(service.byUsername('nobody')).rejects.toBeInstanceOf(NotFoundError);
   });
 

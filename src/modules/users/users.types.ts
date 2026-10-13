@@ -29,6 +29,8 @@ export interface PublicProfile {
 /** The signed-in user's own profile. */
 export interface MyProfile extends PublicProfile {
   onboarded: boolean;
+  /** Admins can invite without limit, see the waitlist, and ban accounts. */
+  isAdmin: boolean;
 }
 
 export interface ProfileChanges {

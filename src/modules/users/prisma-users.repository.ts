@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client.js';
+import { UserRole } from '../../generated/prisma/enums.js';
 import { NOT_BANNED } from '../../prisma/block-filters.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { UsernameTakenError } from './users.errors.js';
@@ -18,14 +19,15 @@ const SELECT = {
   headerUrl: true,
   isPrivate: true,
   onboardedAt: true,
+  role: true,
   createdAt: true,
   hometown: { select: { id: true, name: true } },
 } as const satisfies Prisma.UserSelect;
 
 type Row = Prisma.UserGetPayload<{ select: typeof SELECT }>;
 
-function toProfile({ onboardedAt, createdAt, ...row }: Row): MyProfile {
-  return { ...row, onboarded: onboardedAt !== null, joinedAt: createdAt };
+function toProfile({ onboardedAt, createdAt, role, ...row }: Row): MyProfile {
+  return { ...row, onboarded: onboardedAt !== null, isAdmin: role === UserRole.ADMIN, joinedAt: createdAt };
 }
 
 @Injectable()
