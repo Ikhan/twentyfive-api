@@ -9,6 +9,7 @@ export function testConfig(overrides: Record<string, string> = {}): AppConfigSer
     JWT_ACCESS_SECRET: 'unit-test-secret-at-least-32-characters!!',
     API_PUBLIC_URL: 'https://api.twentyfive.test',
     WEB_APP_URL: 'https://twentyfive.test',
+    INVITE_ONLY: 'false',
     ...overrides,
   });
   return new AppConfigService(new ConfigService(env) as never);

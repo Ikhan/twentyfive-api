@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client.js';
+import { UserRole } from '../../generated/prisma/enums.js';
+import { NOT_BANNED } from '../../prisma/block-filters.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { UsernameTakenError } from './users.errors.js';
 import type { UsersRepository } from './users.repository.js';
@@ -17,14 +19,15 @@ const SELECT = {
   headerUrl: true,
   isPrivate: true,
   onboardedAt: true,
+  role: true,
   createdAt: true,
   hometown: { select: { id: true, name: true } },
 } as const satisfies Prisma.UserSelect;
 
 type Row = Prisma.UserGetPayload<{ select: typeof SELECT }>;
 
-function toProfile({ onboardedAt, createdAt, ...row }: Row): MyProfile {
-  return { ...row, onboarded: onboardedAt !== null, joinedAt: createdAt };
+function toProfile({ onboardedAt, createdAt, role, ...row }: Row): MyProfile {
+  return { ...row, onboarded: onboardedAt !== null, isAdmin: role === UserRole.ADMIN, joinedAt: createdAt };
 }
 
 @Injectable()
@@ -37,7 +40,7 @@ export class PrismaUsersRepository implements UsersRepository {
   }
 
   async findByUsername(username: string): Promise<MyProfile | null> {
-    const row = await this.prisma.user.findUnique({ where: { username }, select: SELECT });
+    const row = await this.prisma.user.findFirst({ where: { username, ...NOT_BANNED }, select: SELECT });
     return row ? toProfile(row) : null;
   }
 
@@ -70,7 +73,7 @@ export class PrismaUsersRepository implements UsersRepository {
               OR (f.follower_id = u.id AND f.followee_id = ${viewerId}::uuid))
         ) AS connected
       ) c
-      WHERE u.onboarded_at IS NOT NULL AND u.id <> ${viewerId}::uuid
+      WHERE u.onboarded_at IS NOT NULL AND u.banned_at IS NULL AND u.id <> ${viewerId}::uuid
         AND (c.connected OR NOT ${connectionsOnly})
         AND (u.username LIKE ${starts} OR u.display_name ILIKE ${starts} OR u.display_name ILIKE ${wordStarts})
         AND NOT EXISTS (

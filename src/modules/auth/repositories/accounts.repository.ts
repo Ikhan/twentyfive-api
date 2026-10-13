@@ -17,14 +17,21 @@ export interface NewAccountUser {
   avatarUrl?: string;
   provider: OAuthProvider;
   providerAccountId: string;
+  /** Used up when the user is created; whoever sent it becomes who invited them. */
+  inviteCode?: string;
 }
 
 /** Persistence for users and their linked provider logins, as needed by sign-in. */
 export interface AccountsRepository {
   findUserByAccount(provider: OAuthProvider, providerAccountId: string): Promise<SessionUser | null>;
+  /** Null for banned accounts too: their sessions can't be refreshed. */
   findUserById(id: string): Promise<SessionUser | null>;
   usernameExists(username: string): Promise<boolean>;
-  /** Creates the user and their first linked account atomically. */
+  isBanned(userId: string): Promise<boolean>;
+  /**
+   * Creates the user and their first linked account atomically, using up `inviteCode` if given. Throws
+   * InviteUnavailableError (creating nothing) if that invite is used, expired, or from a banned account.
+   */
   createUserWithAccount(input: NewAccountUser): Promise<SessionUser>;
 }
 

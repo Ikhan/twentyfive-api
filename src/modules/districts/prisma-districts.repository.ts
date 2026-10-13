@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { Province } from '../../generated/prisma/enums.js';
+import { NOT_BANNED } from '../../prisma/block-filters.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { UserSummary } from '../users/users.types.js';
 import type { DistrictsRepository } from './districts.repository.js';
@@ -125,6 +126,7 @@ export class PrismaDistrictsRepository implements DistrictsRepository {
       where: {
         hometownId: districtId,
         onboardedAt: { not: null },
+        ...NOT_BANNED,
         ...(afterUsername && { username: { gt: afterUsername } }),
       },
       select: { id: true, username: true, displayName: true, avatarUrl: true, isPrivate: true },

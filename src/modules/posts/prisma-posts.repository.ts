@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client.js';
 import { FollowStatus, PostAudience } from '../../generated/prisma/enums.js';
-import { notBlockedWith } from '../../prisma/block-filters.js';
+import { NOT_BANNED, notBlockedWith } from '../../prisma/block-filters.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { PHOTOS, toPhotoViews } from './photo-select.js';
 import { PhotoAlreadyUsedError } from './posts.errors.js';
@@ -41,6 +41,7 @@ function selectFor(viewerId: string) {
         author: {
           select: {
             ...AUTHOR,
+            bannedAt: true,
             followers: {
               where: { followerId: viewerId, status: FollowStatus.ACCEPTED },
               select: { followerId: true },
@@ -66,8 +67,8 @@ function toQuoted(row: Row, viewerId: string): QuotedPost | null {
   if (!row.isQuote) return null;
   const q = row.quotedPost;
   if (!q) return { available: false };
-  const { followers, blocking, blockedBy, ...author } = q.author;
-  const blocked = blocking.length > 0 || blockedBy.length > 0;
+  const { followers, blocking, blockedBy, bannedAt, ...author } = q.author;
+  const blocked = blocking.length > 0 || blockedBy.length > 0 || bannedAt !== null;
   const visible =
     author.id === viewerId ||
     (!blocked && ((q.audience === PostAudience.EVERYONE && !author.isPrivate) || followers.length > 0));
@@ -217,7 +218,10 @@ export class PrismaPostsRepository implements PostsRepository {
   }
 
   findAuthor(username: string): Promise<AuthorAccess | null> {
-    return this.prisma.user.findUnique({ where: { username }, select: { id: true, username: true, isPrivate: true } });
+    return this.prisma.user.findFirst({
+      where: { username, ...NOT_BANNED },
+      select: { id: true, username: true, isPrivate: true },
+    });
   }
 
   async isApprovedFollower(followerId: string, authorId: string): Promise<boolean> {
@@ -229,7 +233,7 @@ export class PrismaPostsRepository implements PostsRepository {
 
   findUsersByUsernames(usernames: string[]): Promise<{ id: string; username: string }[]> {
     return this.prisma.user.findMany({
-      where: { username: { in: usernames }, onboardedAt: { not: null } },
+      where: { username: { in: usernames }, onboardedAt: { not: null }, ...NOT_BANNED },
       select: { id: true, username: true },
     });
   }

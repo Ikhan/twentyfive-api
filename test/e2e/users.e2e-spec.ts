@@ -53,7 +53,17 @@ describe('Users (e2e)', () => {
     });
 
     const me = await http().get('/api/v1/users/me').set('Authorization', kasun.auth).expect(200);
-    expect(me.body.data).toMatchObject({ username: 'kasun', bio: 'Kandy boy', onboarded: true });
+    expect(me.body.data).toMatchObject({ username: 'kasun', bio: 'Kandy boy', onboarded: true, isAdmin: false });
+  });
+
+  it('tells admins they are admins, on their own profile only', async () => {
+    const imran = await createUser(app, prisma, { username: 'imran' });
+    await prisma.user.update({ where: { id: imran.id }, data: { role: 'ADMIN' } });
+    const me = await http().get('/api/v1/users/me').set('Authorization', imran.auth).expect(200);
+    expect(me.body.data.isAdmin).toBe(true);
+    const visitor = await createUser(app, prisma, { username: 'ruwan' });
+    const profile = await http().get('/api/v1/users/imran').set('Authorization', visitor.auth).expect(200);
+    expect(profile.body.data).not.toHaveProperty('isAdmin');
   });
 
   it('explains why a username is unavailable', async () => {

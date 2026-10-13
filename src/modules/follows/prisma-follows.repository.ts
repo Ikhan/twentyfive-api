@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { Prisma } from '../../generated/prisma/client.js';
 import { FollowStatus as DbFollowStatus } from '../../generated/prisma/enums.js';
+import { NOT_BANNED } from '../../prisma/block-filters.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { UserSummary } from '../users/users.types.js';
 import type { FollowsRepository } from './follows.repository.js';
@@ -18,7 +19,10 @@ export class PrismaFollowsRepository implements FollowsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   findTarget(username: string): Promise<FollowTarget | null> {
-    return this.prisma.user.findUnique({ where: { username }, select: { id: true, username: true, isPrivate: true } });
+    return this.prisma.user.findFirst({
+      where: { username, ...NOT_BANNED },
+      select: { id: true, username: true, isPrivate: true },
+    });
   }
 
   async status(followerId: string, followeeId: string): Promise<FollowStatus | null> {
@@ -94,7 +98,7 @@ export class PrismaFollowsRepository implements FollowsRepository {
         SELECT followee_id AS id FROM follows WHERE follower_id = ${viewerId}::uuid AND status = 'ACCEPTED'
       ), candidates AS (
         SELECT u.* FROM users u
-        WHERE u.onboarded_at IS NOT NULL AND u.id <> ${viewerId}::uuid
+        WHERE u.onboarded_at IS NOT NULL AND u.banned_at IS NULL AND u.id <> ${viewerId}::uuid
           AND NOT EXISTS (SELECT 1 FROM follows f WHERE f.follower_id = ${viewerId}::uuid AND f.followee_id = u.id)
           AND NOT EXISTS (
             SELECT 1 FROM blocks b
@@ -151,7 +155,7 @@ export class PrismaFollowsRepository implements FollowsRepository {
 
   private users(where: Prisma.UserWhereInput, { afterUsername, take }: Page): Promise<UserSummary[]> {
     return this.prisma.user.findMany({
-      where: { ...where, ...(afterUsername && { username: { gt: afterUsername } }) },
+      where: { ...where, ...NOT_BANNED, ...(afterUsername && { username: { gt: afterUsername } }) },
       select: USER_SUMMARY,
       orderBy: { username: 'asc' },
       take,

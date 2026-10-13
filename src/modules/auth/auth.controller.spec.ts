@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
 import { testConfig } from '../../../test/fakes/config.js';
-import { InvalidSessionError } from './auth.errors.js';
+import { AccountBannedError, InvalidSessionError, InviteRequiredError, InviteUnavailableError } from './auth.errors.js';
 import { AuthController } from './auth.controller.js';
 import type { AuthCookies } from './auth-cookies.js';
 import type { AuthService } from './auth.service.js';
@@ -32,12 +32,14 @@ describe('AuthController', () => {
   });
 
   it('start stores the sealed state and redirects to the provider', async () => {
-    const { controller, cookies, res } = setup({
-      startSignIn: vi.fn().mockResolvedValue({ redirectUrl: 'https://p/auth', sealedState: 's' }),
-    });
-    await controller.start('google', res);
+    const startSignIn = vi.fn().mockResolvedValue({ redirectUrl: 'https://p/auth', sealedState: 's' });
+    const { controller, cookies, res } = setup({ startSignIn });
+    await controller.start('google', undefined, res);
     expect(cookies.setOAuthState).toHaveBeenCalledWith(res, 's');
     expect(res.redirect).toHaveBeenCalledWith(302, 'https://p/auth');
+
+    await controller.start('google', 'K7M2QX9PRT', res);
+    expect(startSignIn).toHaveBeenLastCalledWith('google', 'K7M2QX9PRT');
   });
 
   it('callback sends new users to onboarding and returning users home', async () => {
@@ -65,6 +67,17 @@ describe('AuthController', () => {
     expect(cookies.clearOAuthState).toHaveBeenCalled();
     expect(cookies.setSession).not.toHaveBeenCalled();
     expect(res.redirect).toHaveBeenCalledWith(302, 'https://twentyfive.test/signin?error=signin_failed');
+  });
+
+  it.each([
+    [new InviteRequiredError(), 'invite_required'],
+    [new InviteUnavailableError(), 'invite_invalid'],
+    [new AccountBannedError(), 'banned'],
+  ])('callback refusals tell the sign-in page why (%s)', async (error, reason) => {
+    const { controller, cookies, res, req } = setup({ completeSignIn: vi.fn().mockRejectedValue(error) });
+    await controller.callback('google', 'code', 'state', req, res);
+    expect(cookies.setSession).not.toHaveBeenCalled();
+    expect(res.redirect).toHaveBeenCalledWith(302, `https://twentyfive.test/signin?error=${reason}`);
   });
 
   it('refresh sets new cookies, and clears them when the session is invalid', async () => {

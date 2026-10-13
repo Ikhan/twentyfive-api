@@ -21,6 +21,8 @@ export async function createTestApp(options: TestAppOptions = {}): Promise<INest
     DATABASE_URL: TEST_DATABASE_URL,
     JWT_ACCESS_SECRET: TEST_JWT_SECRET,
     LOG_LEVEL: 'silent',
+    // Open sign-up, so feature tests can sign people up freely; the invites tests switch it on.
+    INVITE_ONLY: 'false',
     ...options.env,
   });
   const { AppModule } = await import('../../src/app.module.js');

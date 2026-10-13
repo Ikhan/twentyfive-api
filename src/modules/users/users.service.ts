@@ -134,6 +134,6 @@ export class UsersService {
   }
 }
 
-function toPublic({ onboarded: _onboarded, ...profile }: MyProfile): PublicProfile {
+function toPublic({ onboarded: _onboarded, isAdmin: _isAdmin, ...profile }: MyProfile): PublicProfile {
   return profile;
 }

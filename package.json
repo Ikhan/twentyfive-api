@@ -34,7 +34,8 @@
     "storage:init": "tsx scripts/init-storage.ts",
     "openapi:export": "nest build && node dist/export-openapi.js",
     "dev:token": "tsx scripts/dev-token.ts",
-    "media:backfill-previews": "tsx scripts/backfill-photo-previews.ts"
+    "media:backfill-previews": "tsx scripts/backfill-photo-previews.ts",
+    "users:make-admin": "tsx scripts/make-admin.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1141.0",

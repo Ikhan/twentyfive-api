@@ -14,6 +14,7 @@ export function profile(overrides: Partial<MyProfile> = {}): MyProfile {
     hometown: null,
     isPrivate: false,
     onboarded: false,
+    isAdmin: false,
     joinedAt: new Date('2026-08-01'),
     ...overrides,
   };

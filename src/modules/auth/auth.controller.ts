@@ -7,6 +7,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import { Public } from '../../common/decorators/public.decorator.js';
 import { AppConfigService } from '../../config/app-config.service.js';
 import { AuthCookies, COOKIE } from './auth-cookies.js';
+import { SignInRefusedError } from './auth.errors.js';
 import { AuthService } from './auth.service.js';
 import type { SessionUser } from './repositories/accounts.repository.js';
 import { AccessTokenService } from './tokens/access-token.service.js';
@@ -36,9 +37,13 @@ export class AuthController {
   @Public()
   @Throttle(AUTH_THROTTLE)
   @Get(':provider/start')
-  @ApiOperation({ summary: 'Redirects the browser to the provider’s sign-in page' })
-  async start(@Param('provider') provider: string, @Res() res: Response): Promise<void> {
-    const { redirectUrl, sealedState } = await this.auth.startSignIn(provider);
+  @ApiOperation({ summary: 'Redirects the browser to the provider’s sign-in page (with ?invite=<code> to sign up)' })
+  async start(
+    @Param('provider') provider: string,
+    @Query('invite') invite: string | undefined,
+    @Res() res: Response,
+  ): Promise<void> {
+    const { redirectUrl, sealedState } = await this.auth.startSignIn(provider, invite);
     this.cookies.setOAuthState(res, sealedState);
     res.redirect(302, redirectUrl);
   }
@@ -66,6 +71,11 @@ export class AuthController {
       this.cookies.setSession(res, session, this.accessTokens.ttlSeconds);
       res.redirect(302, `${webApp}${session.user.onboarded ? '/' : '/onboarding'}`);
     } catch (error) {
+      // Expected refusals (no invite, used invite, banned) tell the web app why; anything else is a failure.
+      if (error instanceof SignInRefusedError) {
+        res.redirect(302, `${webApp}/signin?error=${error.reason}`);
+        return;
+      }
       this.logger.warn(`Sign-in with ${provider} failed: ${error instanceof Error ? error.message : String(error)}`);
       res.redirect(302, `${webApp}/signin?error=signin_failed`);
     }

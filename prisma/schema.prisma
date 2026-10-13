@@ -45,6 +45,7 @@ model District {
   followers     DistrictFollow[]
   posts         Post[]
   notifications Notification[]
+  waitlist      WaitlistEntry[]
 
   @@index([province])
   @@map("districts")
@@ -53,6 +54,12 @@ model District {
 enum OAuthProvider {
   GOOGLE
   FACEBOOK
+}
+
+enum UserRole {
+  USER
+  /// Can invite without limit, see the waitlist, and ban accounts.
+  ADMIN
 }
 
 model User {
@@ -71,6 +78,15 @@ model User {
   isPrivate   Boolean   @default(false) @map("is_private")
   /// Null until the user finishes onboarding.
   onboardedAt DateTime? @map("onboarded_at")
+  role        UserRole  @default(USER)
+  /// Who invited them, while sign-up is invite-only. Null for the first accounts and anyone who joined after.
+  invitedById String?   @map("invited_by_id") @db.Uuid
+  invitedBy   User?     @relation("invitedBy", fields: [invitedById], references: [id], onDelete: SetNull)
+  /// Set by an admin: they can't sign in, and their posts, comments and profile are hidden.
+  bannedAt    DateTime? @map("banned_at")
+  /// Marked for an admin to review, e.g. because whoever invited them was banned.
+  flaggedAt   DateTime? @map("flagged_at")
+  flagReason  String?   @map("flag_reason")
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
@@ -90,8 +106,13 @@ model User {
   blocking        Block[]          @relation("blocker")
   blockedBy       Block[]          @relation("blocked")
   reports         Report[]
+  invitees        User[]           @relation("invitedBy")
+  invites         Invite[]         @relation("inviter")
+  inviteUsed      Invite?          @relation("invitee")
 
   @@index([hometownId])
+  @@index([invitedById])
+  @@index([flaggedAt])
   @@map("users")
 }
 
@@ -460,4 +481,38 @@ model Report {
   @@index([status, createdAt])
   @@index([targetType, targetId])
   @@map("reports")
+}
+
+/// A single-use link to sign up while sign-up is invite-only. Each person has a few at a time (admins: any number).
+model Invite {
+  id        String         @id @default(uuid()) @db.Uuid
+  /// What goes in the link (…/invite/<code>).
+  code      String         @unique
+  inviterId String         @map("inviter_id") @db.Uuid
+  inviter   User           @relation("inviter", fields: [inviterId], references: [id], onDelete: Cascade)
+  usedById  String?        @unique @map("used_by_id") @db.Uuid
+  usedBy    User?          @relation("invitee", fields: [usedById], references: [id], onDelete: SetNull)
+  usedAt    DateTime?      @map("used_at")
+  expiresAt DateTime       @map("expires_at")
+  createdAt DateTime       @default(now()) @map("created_at")
+  waitlist  WaitlistEntry?
+
+  @@index([inviterId, createdAt(sort: Desc)])
+  @@map("invites")
+}
+
+/// Someone without an invite asking to join. An admin sends them an invite.
+model WaitlistEntry {
+  id         String    @id @default(uuid()) @db.Uuid
+  name       String
+  /// Lowercased; one entry per address.
+  email      String    @unique
+  districtId String?   @map("district_id")
+  district   District? @relation(fields: [districtId], references: [id], onDelete: SetNull)
+  inviteId   String?   @unique @map("invite_id") @db.Uuid
+  invite     Invite?   @relation(fields: [inviteId], references: [id], onDelete: SetNull)
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("waitlist")
 }
