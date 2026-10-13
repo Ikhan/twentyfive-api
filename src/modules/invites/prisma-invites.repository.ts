@@ -3,7 +3,14 @@ import { Prisma } from '../../generated/prisma/client.js';
 import { UserRole } from '../../generated/prisma/enums.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { InvitesRepository, NewInvite } from './invites.repository.js';
-import type { InvitePreview, InviteStatus, InviteView, NewWaitlistEntry, WaitlistView } from './invites.types.js';
+import {
+  inviteStatus,
+  type InvitePreview,
+  type InviteView,
+  type NewWaitlistEntry,
+  type WaitlistContact,
+  type WaitlistView,
+} from './invites.types.js';
 
 const USER_SUMMARY = { id: true, username: true, displayName: true, avatarUrl: true, isPrivate: true } as const;
 
@@ -16,11 +23,6 @@ const INVITE = {
 } as const satisfies Prisma.InviteSelect;
 
 type InviteRow = Prisma.InviteGetPayload<{ select: typeof INVITE }>;
-
-export function inviteStatus(invite: { usedAt: Date | null; expiresAt: Date }, now: Date): InviteStatus {
-  if (invite.usedAt) return 'used';
-  return invite.expiresAt <= now ? 'expired' : 'pending';
-}
 
 const toView = (row: InviteRow, now: Date): InviteView => ({ ...row, status: inviteStatus(row, now) });
 
@@ -91,6 +93,8 @@ export class PrismaInvitesRepository implements InvitesRepository {
         name: true,
         email: true,
         createdAt: true,
+        approvedAt: true,
+        emailedAt: true,
         district: { select: { id: true, name: true } },
         invite: { select: { code: true, usedAt: true, expiresAt: true } },
       },
@@ -99,21 +103,37 @@ export class PrismaInvitesRepository implements InvitesRepository {
       ...row,
       invite: invite && { code: invite.code, status: inviteStatus(invite, now) },
     }));
-    // Waiting first (never invited, or their link expired), then the ones already sent a link.
-    const waiting = (v: WaitlistView) => !v.invite || v.invite.status === 'expired';
+    // Still waiting first, then the ones already approved.
+    const waiting = (v: WaitlistView) => v.approvedAt === null;
     return [...views.filter(waiting), ...views.filter((v) => !waiting(v))];
   }
 
-  findWaitlistEntry(id: string): Promise<{ id: string; inviteId: string | null } | null> {
-    return this.prisma.waitlistEntry.findUnique({ where: { id }, select: { id: true, inviteId: true } });
+  findWaitlistEntry(id: string): Promise<WaitlistContact | null> {
+    return this.prisma.waitlistEntry.findUnique({
+      where: { id },
+      select: { id: true, name: true, email: true, invite: { select: { code: true, usedAt: true, expiresAt: true } } },
+    });
   }
 
-  async inviteFromWaitlist(entryId: string, invite: NewInvite, now: Date): Promise<InviteView> {
+  async approve(entryId: string, invite: NewInvite | null, now: Date): Promise<InviteView> {
     return this.prisma.$transaction(async (tx) => {
+      const entry = await tx.waitlistEntry.findUniqueOrThrow({
+        where: { id: entryId },
+        select: { approvedAt: true, invite: { select: INVITE } },
+      });
+      const approvedAt = entry.approvedAt ?? now;
+      if (!invite) {
+        await tx.waitlistEntry.update({ where: { id: entryId }, data: { approvedAt } });
+        return toView(entry.invite!, now);
+      }
       const created = await tx.invite.create({ data: invite, select: { id: true, ...INVITE } });
-      await tx.waitlistEntry.update({ where: { id: entryId }, data: { inviteId: created.id } });
+      await tx.waitlistEntry.update({ where: { id: entryId }, data: { inviteId: created.id, approvedAt } });
       const { id: _id, ...row } = created;
       return toView(row, now);
     });
+  }
+
+  async markEmailed(entryId: string, now: Date): Promise<void> {
+    await this.prisma.waitlistEntry.update({ where: { id: entryId }, data: { emailedAt: now } });
   }
 }

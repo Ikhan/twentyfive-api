@@ -6,7 +6,14 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import { Public } from '../../common/decorators/public.decorator.js';
 import { AdminService } from './admin.service.js';
 import { JoinWaitlistDto } from './dto/join-waitlist.dto.js';
-import type { FlaggedUser, InvitePreview, InviteView, MyInvites, WaitlistView } from './invites.types.js';
+import type {
+  FlaggedUser,
+  InvitePreview,
+  InviteView,
+  MyInvites,
+  WaitlistApproval,
+  WaitlistView,
+} from './invites.types.js';
 import { InvitesService } from './invites.service.js';
 
 /** Looking up codes and joining the waitlist are open to anyone, so they're held to a tighter limit. */
@@ -75,10 +82,11 @@ export class AdminController {
     return this.invites.waitlist(user.id);
   }
 
-  @Post('waitlist/:id/invite')
-  @ApiOperation({ summary: 'Make an invite link for someone on the waitlist (admins)' })
-  inviteFromWaitlist(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string): Promise<InviteView> {
-    return this.invites.inviteFromWaitlist(user.id, id);
+  @Post('waitlist/:id/approve')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Approve someone on the waitlist: makes their invite link and emails it to them (admins)' })
+  approve(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string): Promise<WaitlistApproval> {
+    return this.invites.approve(user.id, id);
   }
 
   @Get('flagged')

@@ -7,6 +7,11 @@ export const INVITE_TTL_DAYS = 14;
 
 export type InviteStatus = 'pending' | 'used' | 'expired';
 
+export function inviteStatus(invite: { usedAt: Date | null; expiresAt: Date }, now: Date): InviteStatus {
+  if (invite.usedAt) return 'used';
+  return invite.expiresAt <= now ? 'expired' : 'pending';
+}
+
 export interface InviteView {
   code: string;
   status: InviteStatus;
@@ -39,8 +44,26 @@ export interface WaitlistView {
   email: string;
   district: { id: string; name: string } | null;
   createdAt: Date;
-  /** The invite sent to them, if any. */
+  /** When an admin approved them. */
+  approvedAt: Date | null;
+  /** When the approval email last went out (null while email isn't set up). */
+  emailedAt: Date | null;
+  /** Their invite link's code, once approved. */
   invite: { code: string; status: InviteStatus } | null;
+}
+
+/** A waitlist entry the admin is approving: who to email, and any invite they already have. */
+export interface WaitlistContact {
+  id: string;
+  name: string;
+  email: string;
+  invite: { code: string; usedAt: Date | null; expiresAt: Date } | null;
+}
+
+export interface WaitlistApproval {
+  invite: InviteView;
+  /** Whether the welcome email actually went out (false while email isn't set up: send the link yourself). */
+  emailed: boolean;
 }
 
 export interface FlaggedUser {

@@ -1,4 +1,11 @@
-import type { FlaggedUser, InvitePreview, InviteView, NewWaitlistEntry, WaitlistView } from './invites.types.js';
+import type {
+  FlaggedUser,
+  InvitePreview,
+  InviteView,
+  NewWaitlistEntry,
+  WaitlistContact,
+  WaitlistView,
+} from './invites.types.js';
 
 export interface NewInvite {
   inviterId: string;
@@ -23,11 +30,15 @@ export interface InvitesRepository {
   /** Adds them to the waitlist; signing up again with the same email changes nothing. */
   addToWaitlist(entry: NewWaitlistEntry): Promise<void>;
   districtExists(districtId: string): Promise<boolean>;
-  /** Not yet invited first, then oldest first. */
+  /** Still waiting first (oldest first), then the approved ones. */
   listWaitlist(now: Date): Promise<WaitlistView[]>;
-  findWaitlistEntry(id: string): Promise<{ id: string; inviteId: string | null } | null>;
-  /** Creates an invite from the admin and links it to the entry (replacing any earlier one). */
-  inviteFromWaitlist(entryId: string, invite: NewInvite, now: Date): Promise<InviteView>;
+  findWaitlistEntry(id: string): Promise<WaitlistContact | null>;
+  /**
+   * Marks the entry approved (keeping the first approval time) and returns its invite: `invite` is created and
+   * linked (replacing an expired one), or, when null, the one it already has is kept.
+   */
+  approve(entryId: string, invite: NewInvite | null, now: Date): Promise<InviteView>;
+  markEmailed(entryId: string, now: Date): Promise<void>;
 }
 
 /** Persistence for admin actions on accounts. */

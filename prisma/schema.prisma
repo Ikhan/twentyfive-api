@@ -501,7 +501,7 @@ model Invite {
   @@map("invites")
 }
 
-/// Someone without an invite asking to join. An admin sends them an invite.
+/// Someone without an invite asking to join. An admin approves them, which emails them an invite link.
 model WaitlistEntry {
   id         String    @id @default(uuid()) @db.Uuid
   name       String
@@ -512,6 +512,10 @@ model WaitlistEntry {
   inviteId   String?   @unique @map("invite_id") @db.Uuid
   invite     Invite?   @relation(fields: [inviteId], references: [id], onDelete: SetNull)
   createdAt  DateTime  @default(now()) @map("created_at")
+  /// When an admin approved them (and made their invite link).
+  approvedAt DateTime? @map("approved_at")
+  /// When the approval email last went out. Null while email isn't set up, or if sending failed.
+  emailedAt  DateTime? @map("emailed_at")
 
   @@index([createdAt])
   @@map("waitlist")

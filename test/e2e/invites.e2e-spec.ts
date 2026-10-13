@@ -130,7 +130,7 @@ describe('Invites (e2e, invite-only)', () => {
     expect(both.map((r) => r.status).sort()).toEqual([201, 409]);
   });
 
-  it('takes waitlist sign-ups, which an admin turns into invite links', async () => {
+  it('takes waitlist sign-ups, which an admin approves with an invite link', async () => {
     const join = (body: object) => http().post('/api/v1/waitlist').send(body);
     await join({ name: 'Dilini', email: 'Dilini@Example.lk', districtId: 'galle' }).expect(200);
     await join({ name: 'Dilini again', email: 'dilini@example.lk' }).expect(200); // same answer, no duplicate
@@ -152,16 +152,31 @@ describe('Invites (e2e, invite-only)', () => {
     ]);
 
     const entryId = list.body.data[0].id as string;
-    await http().post(`/api/v1/admin/waitlist/${entryId}/invite`).set('Authorization', amaya.auth).expect(403);
-    const sent = await http()
-      .post(`/api/v1/admin/waitlist/${entryId}/invite`)
+    await http().post(`/api/v1/admin/waitlist/${entryId}/approve`).set('Authorization', amaya.auth).expect(403);
+    const approved = await http()
+      .post(`/api/v1/admin/waitlist/${entryId}/approve`)
       .set('Authorization', imran.auth)
-      .expect(201);
+      .expect(200);
+    // No email service yet: the link is made, but nobody is told an email went out.
+    expect(approved.body.data).toMatchObject({ emailed: false, invite: { status: 'pending' } });
+    const code = approved.body.data.invite.code as string;
     const after = await http().get('/api/v1/admin/waitlist').set('Authorization', imran.auth).expect(200);
-    expect(after.body.data[0].invite).toEqual({ code: sent.body.data.code, status: 'pending' });
+    expect(after.body.data[0]).toMatchObject({
+      approvedAt: expect.any(String),
+      emailedAt: null,
+      invite: { code, status: 'pending' },
+    });
+
+    // Approving again re-sends the same, still unused link.
+    const again = await http()
+      .post(`/api/v1/admin/waitlist/${entryId}/approve`)
+      .set('Authorization', imran.auth)
+      .expect(200);
+    expect(again.body.data.invite.code).toBe(code);
 
     provider.profile = { providerAccountId: 'g-dilini', displayName: 'Dilini' };
-    expect((await signIn(sent.body.data.code)).location).toBe('http://web.test/onboarding');
+    expect((await signIn(code)).location).toBe('http://web.test/onboarding');
+    await http().post(`/api/v1/admin/waitlist/${entryId}/approve`).set('Authorization', imran.auth).expect(409);
   });
 
   it('bans: no sign-in, hidden everywhere, invites void, and the people they invited flagged', async () => {

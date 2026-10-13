@@ -104,11 +104,16 @@ While `INVITE_ONLY=true` (the default), new accounts need an invite; existing ac
   with `/auth/<provider>/start?invite=<code>`. The code is used up when the account is created, and the new
   account remembers who invited it (`users.invited_by_id`). Without a valid one, sign-in comes back to
   `/signin?error=invite_required` or `invite_invalid`, where the web app offers the waitlist (`POST /api/v1/waitlist`).
-- **Admins** (`npm run users:make-admin -- <username>`, once per environment) see the waitlist and make invite links
-  for it (`/api/v1/admin/waitlist`), and can ban accounts (`PUT`/`DELETE /api/v1/admin/users/<username>/ban`).
+- **Admins** (`npm run users:make-admin -- <username>`, once per environment) see the waitlist and approve people
+  (`POST /api/v1/admin/waitlist/<id>/approve`): that makes their invite link and emails them a welcome with it
+  (approving again re-sends the link, or a new one once it expired). They can also ban accounts (`PUT`/`DELETE /api/v1/admin/users/<username>/ban`).
   A ban ends their sessions and voids their unused invites. It hides their profile, posts and comments, and flags
   the people they invited for review (`GET /api/v1/admin/flagged`, cleared with `DELETE …/users/<username>/flag`).
   Banned accounts can't sign in again; an access token already issued lasts at most 15 minutes.
+
+**Email** goes through `MAILER` (`src/modules/mail`). For now it's a placeholder that sends nothing: in development
+it logs the whole email (try its link), elsewhere just that it wasn't sent. Approvals then answer `emailed: false`, and the
+admin sends the link themselves. Amazon SES replaces `PlaceholderMailer` in `MailModule` later.
 
 **Opening to everyone**: set `INVITE_ONLY=false` and restart. Sign-up opens, invites in sign-in links are ignored,
 and the invite and waitlist endpoints return 404 (`GET /api/v1/invites/status` tells the web app, which hides

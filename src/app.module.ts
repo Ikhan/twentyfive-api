@@ -12,6 +12,7 @@ import { DistrictsModule } from './modules/districts/districts.module.js';
 import { FollowsModule } from './modules/follows/follows.module.js';
 import { HealthModule } from './modules/health/health.module.js';
 import { InvitesModule } from './modules/invites/invites.module.js';
+import { MailModule } from './modules/mail/mail.module.js';
 import { MediaModule } from './modules/media/media.module.js';
 import { ModerationModule } from './modules/moderation/moderation.module.js';
 import { NotificationsModule } from './modules/notifications/notifications.module.js';
@@ -30,6 +31,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
         loggerModuleParams({ level: config.get('LOG_LEVEL'), pretty: config.get('NODE_ENV') === 'development' }),
     }),
     PrismaModule,
+    MailModule,
     EventEmitterModule.forRoot(),
     ThrottlerModule.forRootAsync({
       inject: [AppConfigService],

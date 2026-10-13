@@ -1,9 +1,12 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client.js';
 import { AppConfigService } from '../../config/app-config.service.js';
+import { MAILER, type Mailer } from '../mail/mailer.js';
+import { approvalEmail } from './approval-email.js';
 import { newInviteCode, normalizeInviteCode } from './invite-code.js';
 import {
   AdminOnlyError,
+  AlreadyJoinedError,
   InviteNotFoundError,
   InvitesClosedError,
   NoInvitesLeftError,
@@ -14,10 +17,13 @@ import { INVITES_REPOSITORY, type InvitesRepository, type NewInvite } from './in
 import {
   INVITE_TTL_DAYS,
   INVITES_PER_PERSON,
+  inviteStatus,
   type InvitePreview,
   type InviteView,
   type MyInvites,
   type NewWaitlistEntry,
+  type WaitlistApproval,
+  type WaitlistContact,
   type WaitlistView,
 } from './invites.types.js';
 
@@ -34,8 +40,11 @@ const isCodeClash = (error: unknown) => error instanceof Prisma.PrismaClientKnow
  */
 @Injectable()
 export class InvitesService {
+  private readonly logger = new Logger(InvitesService.name);
+
   constructor(
     @Inject(INVITES_REPOSITORY) private readonly invites: InvitesRepository,
+    @Inject(MAILER) private readonly mailer: Mailer,
     private readonly config: AppConfigService,
   ) {}
 
@@ -93,13 +102,42 @@ export class InvitesService {
     return this.invites.listWaitlist(new Date());
   }
 
-  /** A fresh invite link for someone on the waitlist, for the admin to send them. */
-  async inviteFromWaitlist(adminId: string, entryId: string): Promise<InviteView> {
+  /**
+   * Approves someone on the waitlist: makes their invite link and emails them a welcome with it. Approving
+   * again re-sends the same link while it's unused, or a new one once it has expired. One entry at a time
+   * for now; bulk approval can loop over this.
+   */
+  async approve(adminId: string, entryId: string): Promise<WaitlistApproval> {
     this.assertInviteOnly();
     await this.assertAdmin(adminId);
-    if (!(await this.invites.findWaitlistEntry(entryId))) throw new WaitlistEntryNotFoundError();
+    const entry = await this.invites.findWaitlistEntry(entryId);
+    if (!entry) throw new WaitlistEntryNotFoundError();
     const now = new Date();
-    return this.withFreshCode(adminId, now, (next) => this.invites.inviteFromWaitlist(entryId, next, now));
+    const current = entry.invite && inviteStatus(entry.invite, now);
+    if (current === 'used') throw new AlreadyJoinedError();
+    const invite =
+      current === 'pending'
+        ? await this.invites.approve(entryId, null, now)
+        : await this.withFreshCode(adminId, now, (next) => this.invites.approve(entryId, next, now));
+    return { invite, emailed: await this.emailApproval(entry, invite) };
+  }
+
+  /** True only if the email really went out. A failure doesn't undo the approval: the admin can send the link. */
+  private async emailApproval(entry: WaitlistContact, invite: InviteView): Promise<boolean> {
+    const link = `${this.config.get('WEB_APP_URL')}/invite/${invite.code}`;
+    try {
+      await this.mailer.send(
+        approvalEmail({ name: entry.name, email: entry.email, link, expiresAt: invite.expiresAt }),
+      );
+    } catch (error) {
+      this.logger.error(
+        `Couldn’t email waitlist entry ${entry.id}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return false;
+    }
+    if (!this.mailer.delivers) return false;
+    await this.invites.markEmailed(entry.id, new Date());
+    return true;
   }
 
   async assertAdmin(userId: string): Promise<void> {
