@@ -8,6 +8,8 @@ export interface OAuthState {
   provider: ProviderId;
   state: string;
   codeVerifier: string;
+  /** The invite code they arrived with, for signing up while sign-up is invite-only. */
+  invite?: string;
 }
 
 const PURPOSE = 'oauth-state';
@@ -41,7 +43,12 @@ export class OAuthStateService {
       const { payload } = await jwtVerify(sealed, this.key, { algorithms: ['HS256'] });
       const value = payload as unknown as OAuthState & { purpose: string };
       if (value.purpose !== PURPOSE || value.provider !== provider || value.state !== returnedState) throw fail();
-      return { provider: value.provider, state: value.state, codeVerifier: value.codeVerifier };
+      return {
+        provider: value.provider,
+        state: value.state,
+        codeVerifier: value.codeVerifier,
+        ...(value.invite && { invite: value.invite }),
+      };
     } catch {
       throw fail();
     }

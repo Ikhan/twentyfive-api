@@ -60,6 +60,15 @@ export const envSchema = z.object({
   /** Base URL photos are served from (CDN or public bucket), e.g. https://cdn.twentyfive.lk */
   S3_PUBLIC_URL: z.url().optional(),
 
+  /**
+   * While true, new accounts need an invite (people without one can join the waitlist). Set to false when
+   * twentyfive opens to everyone: sign-up opens, and the invite and waitlist endpoints go away.
+   */
+  INVITE_ONLY: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
+
   /** Requests allowed per client per window (see ThrottlerModule). */
   RATE_LIMIT_TTL_SECONDS: z.coerce.number().int().positive().default(60),
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(120),

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { OAuthProvider as ProviderEnum } from '../../src/generated/prisma/enums.js';
+import { InviteUnavailableError } from '../../src/modules/auth/auth.errors.js';
 import type { OAuthProfile, OAuthProvider } from '../../src/modules/auth/oauth/oauth-provider.js';
 import type {
   AccountsRepository,
@@ -50,14 +51,25 @@ export class InMemoryAccountsRepository implements AccountsRepository {
   }
 
   async findUserById(id: string): Promise<SessionUser | null> {
-    return this.users.get(id) ?? null;
+    return this.banned.has(id) ? null : (this.users.get(id) ?? null);
   }
 
   async usernameExists(username: string): Promise<boolean> {
     return this.takenUsernames.has(username) || [...this.users.values()].some((u) => u.username === username);
   }
 
+  readonly banned = new Set<string>();
+  /** Invite codes that can still be used; using one removes it. */
+  readonly openInvites = new Set<string>();
+  readonly usedInvites = new Map<string, string>(); // code → user id
+
+  async isBanned(userId: string): Promise<boolean> {
+    return this.banned.has(userId);
+  }
+
   async createUserWithAccount(input: NewAccountUser): Promise<SessionUser> {
+    if (input.inviteCode !== undefined && !this.openInvites.delete(input.inviteCode))
+      throw new InviteUnavailableError();
     const user: SessionUser = {
       id: randomUUID(),
       username: input.username,
@@ -68,6 +80,7 @@ export class InMemoryAccountsRepository implements AccountsRepository {
     };
     this.users.set(user.id, user);
     this.accounts.set(`${input.provider}:${input.providerAccountId}`, user.id);
+    if (input.inviteCode !== undefined) this.usedInvites.set(input.inviteCode, user.id);
     return user;
   }
 }

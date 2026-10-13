@@ -1,7 +1,8 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { AppConfigService } from '../../config/app-config.service.js';
-import { InvalidSessionError, UnknownProviderError } from './auth.errors.js';
+import { normalizeInviteCode } from '../invites/invite-code.js';
+import { AccountBannedError, InvalidSessionError, InviteRequiredError, UnknownProviderError } from './auth.errors.js';
 import { OAUTH_PROVIDERS, type OAuthProfile, type OAuthProvider, type ProviderId } from './oauth/oauth-provider.js';
 import { codeChallengeFor, randomToken } from './oauth/pkce.js';
 import { ACCOUNTS_REPOSITORY, type AccountsRepository, type SessionUser } from './repositories/accounts.repository.js';
@@ -43,7 +44,8 @@ export class AuthService {
     return this.providers.map(({ id, label }) => ({ id, label }));
   }
 
-  async startSignIn(providerId: string): Promise<SignInStart> {
+  /** `invite`: the code from an invite link, kept with the sign-in until it comes back. Ignored if malformed. */
+  async startSignIn(providerId: string, invite?: string): Promise<SignInStart> {
     const provider = this.provider(providerId);
     const state = randomToken();
     const codeVerifier = randomToken(48);
@@ -52,16 +54,26 @@ export class AuthService {
       codeChallenge: codeChallengeFor(codeVerifier),
       redirectUri: this.redirectUri(provider.id),
     });
-    return { redirectUrl, sealedState: await this.oauthState.seal({ provider: provider.id, state, codeVerifier }) };
+    const code = normalizeInviteCode(invite);
+    const sealedState = await this.oauthState.seal({
+      provider: provider.id,
+      state,
+      codeVerifier,
+      ...(code && { invite: code }),
+    });
+    return { redirectUrl, sealedState };
   }
 
-  /** Verifies the callback, finds or creates the user, and starts a session. */
+  /**
+   * Verifies the callback, finds or creates the user, and starts a session. While sign-up is invite-only,
+   * a new account needs an invite (used up here); banned accounts can't sign in.
+   */
   async completeSignIn(
     providerId: string,
     input: { code?: string; state?: string; sealedState?: string; userAgent?: string },
   ): Promise<IssuedSession & { isNewUser: boolean }> {
     const provider = this.provider(providerId);
-    const { codeVerifier } = await this.oauthState.open(input.sealedState, provider.id, input.state);
+    const { codeVerifier, invite } = await this.oauthState.open(input.sealedState, provider.id, input.state);
     if (!input.code) throw new InvalidSessionError();
     const profile = await provider.fetchProfile({
       code: input.code,
@@ -70,7 +82,8 @@ export class AuthService {
     });
 
     const existing = await this.accounts.findUserByAccount(provider.dbProvider, profile.providerAccountId);
-    const user = existing ?? (await this.createUser(provider, profile));
+    if (existing && (await this.accounts.isBanned(existing.id))) throw new AccountBannedError();
+    const user = existing ?? (await this.createUser(provider, profile, invite));
     const session = await this.issueSession(user, randomUUID(), input.userAgent);
     return { ...session, isNewUser: !existing };
   }
@@ -138,7 +151,10 @@ export class AuthService {
     };
   }
 
-  private async createUser(provider: OAuthProvider, profile: OAuthProfile): Promise<SessionUser> {
+  private async createUser(provider: OAuthProvider, profile: OAuthProfile, invite?: string): Promise<SessionUser> {
+    // Once twentyfive is open to everyone, invites are ignored.
+    const inviteOnly = this.config.get('INVITE_ONLY');
+    if (inviteOnly && !invite) throw new InviteRequiredError();
     const username = await this.firstFreeUsername(profile.displayName);
     return this.accounts.createUserWithAccount({
       username,
@@ -147,6 +163,7 @@ export class AuthService {
       avatarUrl: profile.avatarUrl,
       provider: provider.dbProvider,
       providerAccountId: profile.providerAccountId,
+      ...(inviteOnly && { inviteCode: invite }),
     });
   }
 

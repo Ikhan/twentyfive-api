@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { OAuthProvider } from '../../../generated/prisma/enums.js';
 import { PrismaService } from '../../../prisma/prisma.service.js';
+import { InviteUnavailableError } from '../auth.errors.js';
 import type { AccountsRepository, NewAccountUser, SessionUser } from './accounts.repository.js';
 
 const SELECT = {
@@ -32,7 +33,7 @@ export class PrismaAccountsRepository implements AccountsRepository {
   }
 
   async findUserById(id: string): Promise<SessionUser | null> {
-    const user = await this.prisma.user.findUnique({ where: { id }, select: SELECT });
+    const user = await this.prisma.user.findFirst({ where: { id, bannedAt: null }, select: SELECT });
     return user ? toSessionUser(user) : null;
   }
 
@@ -40,17 +41,37 @@ export class PrismaAccountsRepository implements AccountsRepository {
     return (await this.prisma.user.count({ where: { username } })) > 0;
   }
 
-  async createUserWithAccount(input: NewAccountUser): Promise<SessionUser> {
-    const user = await this.prisma.user.create({
-      data: {
-        username: input.username,
-        displayName: input.displayName,
-        email: input.email,
-        avatarUrl: input.avatarUrl,
-        accounts: { create: { provider: input.provider, providerAccountId: input.providerAccountId } },
-      },
-      select: SELECT,
+  async isBanned(userId: string): Promise<boolean> {
+    return (await this.prisma.user.count({ where: { id: userId, bannedAt: { not: null } } })) > 0;
+  }
+
+  async createUserWithAccount({ inviteCode, ...input }: NewAccountUser): Promise<SessionUser> {
+    return this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          username: input.username,
+          displayName: input.displayName,
+          email: input.email,
+          avatarUrl: input.avatarUrl,
+          accounts: { create: { provider: input.provider, providerAccountId: input.providerAccountId } },
+        },
+        select: SELECT,
+      });
+      if (inviteCode) {
+        const now = new Date();
+        // Claims the invite only if nobody has yet: of two people racing for one link, one gets it.
+        const claimed = await tx.invite.updateMany({
+          where: { code: inviteCode, usedAt: null, expiresAt: { gt: now }, inviter: { bannedAt: null } },
+          data: { usedById: user.id, usedAt: now },
+        });
+        if (claimed.count === 0) throw new InviteUnavailableError(); // rolls the new user back
+        const { inviterId } = await tx.invite.findUniqueOrThrow({
+          where: { code: inviteCode },
+          select: { inviterId: true },
+        });
+        await tx.user.update({ where: { id: user.id }, data: { invitedById: inviterId } });
+      }
+      return toSessionUser(user);
     });
-    return toSessionUser(user);
   }
 }

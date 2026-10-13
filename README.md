@@ -92,7 +92,27 @@ In production, serve the bucket through a CDN and set `S3_PUBLIC_URL`.
   follow, follow request, request accepted, comment, repost. Never for your own actions or across a block;
   unread duplicates aren't repeated. They're best-effort: failures are logged and don't fail the action.
 - **Moderation**: blocking removes follows both ways and hides each other's posts, comments and
-  notifications. Reports (`POST /reports`) are stored for review; there's no admin API yet.
+  notifications. Reports (`POST /reports`) are stored for review.
+
+## Invite-only launch
+
+While `INVITE_ONLY=true` (the default), new accounts need an invite; existing accounts sign in as usual.
+
+- Everyone can have **10** invite links out at a time (`GET`/`POST /api/v1/invites`). A link is single-use and
+  lasts 14 days; an unused one that expires gives its slot back. Admins have no limit.
+- The invite page (`WEB_APP_URL/invite/<code>`) shows who sent it (`GET /api/v1/invites/<code>`) and starts sign-in
+  with `/auth/<provider>/start?invite=<code>`. The code is used up when the account is created, and the new
+  account remembers who invited it (`users.invited_by_id`). Without a valid one, sign-in comes back to
+  `/signin?error=invite_required` or `invite_invalid`, where the web app offers the waitlist (`POST /api/v1/waitlist`).
+- **Admins** (`npm run users:make-admin -- <username>`, once per environment) see the waitlist and make invite links
+  for it (`/api/v1/admin/waitlist`), and can ban accounts (`PUT`/`DELETE /api/v1/admin/users/<username>/ban`).
+  A ban ends their sessions and voids their unused invites. It hides their profile, posts and comments, and flags
+  the people they invited for review (`GET /api/v1/admin/flagged`, cleared with `DELETE …/users/<username>/flag`).
+  Banned accounts can't sign in again; an access token already issued lasts at most 15 minutes.
+
+**Opening to everyone**: set `INVITE_ONLY=false` and restart. Sign-up opens, invites in sign-in links are ignored,
+and the invite and waitlist endpoints return 404 (`GET /api/v1/invites/status` tells the web app, which hides
+its invite pages). Bans and flags keep working. Invite history stays in the database.
 
 ## API clients (Yaak, Postman, …)
 

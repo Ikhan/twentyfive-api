@@ -4,14 +4,20 @@ import {
   InMemorySessionsRepository,
 } from '../../../test/fakes/auth-fakes.js';
 import { testConfig } from '../../../test/fakes/config.js';
-import { InvalidSessionError, UnknownProviderError } from './auth.errors.js';
+import {
+  AccountBannedError,
+  InvalidSessionError,
+  InviteRequiredError,
+  InviteUnavailableError,
+  UnknownProviderError,
+} from './auth.errors.js';
 import { AuthService } from './auth.service.js';
 import { AccessTokenService } from './tokens/access-token.service.js';
 import { OAuthStateService } from './tokens/oauth-state.service.js';
 import { hashToken } from './tokens/refresh-token.js';
 
-function setup() {
-  const config = testConfig({ REFRESH_TOKEN_TTL_DAYS: '30' });
+function setup({ inviteOnly = false } = {}) {
+  const config = testConfig({ REFRESH_TOKEN_TTL_DAYS: '30', INVITE_ONLY: String(inviteOnly) });
   const provider = new FakeOAuthProvider();
   const accounts = new InMemoryAccountsRepository();
   const sessions = new InMemorySessionsRepository();
@@ -20,13 +26,70 @@ function setup() {
   const service = new AuthService([provider], accounts, sessions, tokens, state, config);
 
   /** Runs start → callback like a browser would. */
-  async function signIn(code = 'good-code') {
-    const { redirectUrl, sealedState } = await service.startSignIn('google');
+  async function signIn(code = 'good-code', invite?: string) {
+    const { redirectUrl, sealedState } = await service.startSignIn('google', invite);
     const returnedState = new URL(redirectUrl).searchParams.get('state') ?? undefined;
     return service.completeSignIn('google', { code, state: returnedState, sealedState, userAgent: 'vitest' });
   }
   return { service, provider, accounts, sessions, tokens, signIn };
 }
+
+describe('AuthService (invite-only)', () => {
+  const CODE = 'K7M2QX9PRT';
+
+  it('turns away a new person without an invite, creating nothing', async () => {
+    const { signIn, accounts } = setup({ inviteOnly: true });
+    await expect(signIn()).rejects.toBeInstanceOf(InviteRequiredError);
+    expect(accounts.users.size).toBe(0);
+  });
+
+  it('signs up a new person with an invite, using it up', async () => {
+    const { signIn, accounts } = setup({ inviteOnly: true });
+    accounts.openInvites.add(CODE);
+    const first = await signIn('good-code', CODE.toLowerCase()); // codes are read case-insensitively
+    expect(first.isNewUser).toBe(true);
+    expect(accounts.usedInvites.get(CODE)).toBe(first.user.id);
+  });
+
+  it('turns away an invite that was already used or never existed', async () => {
+    const { signIn, accounts } = setup({ inviteOnly: true });
+    await expect(signIn('good-code', CODE)).rejects.toBeInstanceOf(InviteUnavailableError);
+    expect(accounts.users.size).toBe(0);
+  });
+
+  it('treats a malformed code like no invite', async () => {
+    const { signIn } = setup({ inviteOnly: true });
+    await expect(signIn('good-code', '<script>')).rejects.toBeInstanceOf(InviteRequiredError);
+  });
+
+  it('lets existing accounts sign in without an invite', async () => {
+    const { signIn, accounts, provider } = setup({ inviteOnly: true });
+    const id = (
+      await accounts.createUserWithAccount({
+        username: 'kasun',
+        displayName: 'Kasun',
+        provider: provider.dbProvider,
+        providerAccountId: provider.profile.providerAccountId,
+      })
+    ).id;
+    await expect(signIn()).resolves.toMatchObject({ isNewUser: false, user: { id } });
+  });
+
+  it('ignores invites once sign-up is open to everyone', async () => {
+    const { signIn, accounts } = setup({ inviteOnly: false });
+    accounts.openInvites.add(CODE);
+    await expect(signIn('good-code', CODE)).resolves.toMatchObject({ isNewUser: true });
+    expect(accounts.openInvites.has(CODE)).toBe(true);
+  });
+
+  it('turns away banned accounts, and their sessions stop refreshing', async () => {
+    const { signIn, accounts, service } = setup();
+    const { user, refreshToken } = await signIn();
+    accounts.banned.add(user.id);
+    await expect(signIn()).rejects.toBeInstanceOf(AccountBannedError);
+    await expect(service.refresh(refreshToken)).rejects.toBeInstanceOf(InvalidSessionError);
+  });
+});
 
 describe('AuthService', () => {
   it('lists configured providers', () => {
