@@ -258,6 +258,7 @@ model Post {
   photos        PostPhoto[]
   /// At most one, and never with photos.
   video         PostVideo?
+  hashtags      PostHashtag[]
   comments      Comment[]
   likes         PostLike[]
   reposts       Repost[]
@@ -374,6 +375,28 @@ model PostLike {
   @@id([userId, postId])
   @@index([postId])
   @@map("post_likes")
+}
+
+/// A #hashtag, once per tag whatever its case: `tag` is lowercase, `name` keeps the casing it was first written with.
+model Hashtag {
+  tag       String        @id
+  name      String
+  createdAt DateTime      @default(now()) @map("created_at")
+  posts     PostHashtag[]
+
+  @@map("hashtags")
+}
+
+/// The #hashtags in a post's text (filled in by twentyfive-api-go when the post is made).
+model PostHashtag {
+  postId  String  @map("post_id") @db.Uuid
+  post    Post    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tag     String
+  hashtag Hashtag @relation(fields: [tag], references: [tag], onDelete: Cascade)
+
+  @@id([postId, tag])
+  @@index([tag])
+  @@map("post_hashtags")
 }
 
 /// Sharing a public post with your followers. One per user per post.
